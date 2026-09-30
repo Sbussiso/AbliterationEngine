@@ -101,6 +101,13 @@ def build_bundle(spec_path, out_dir="bundles", repo_root=None):
         shutil.copy2(spec_path, os.path.join(staging, "specs", spec_name))
         shutil.copy2(pyproject, os.path.join(staging, "pyproject.toml"))
         shutil.copy2(lock_path, os.path.join(staging, "uv.lock"))
+        # pyproject declares readme = "README.md"; the wheel build reads it,
+        # so the bundle must carry it (caught live on Colab 2026-09-30:
+        # uv sync failed 'failed to open /content/parity/README.md')
+        readme_src = os.path.join(repo_root, "README.md")
+        if os.path.exists(readme_src):
+            shutil.copy2(readme_src,
+                         os.path.join(staging, "README.md"))
 
         runner = RUNNER_TEMPLATE.format(version=__version__,
                                         spec_name=spec_name)

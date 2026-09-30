@@ -95,3 +95,19 @@ def test_bundle_spec_rejects_bad(built, tmp_path):
     rc = cli.main(["bundle", "--spec", str(bad), "--out-dir",
                    str(tmp_path / "o")])
     assert rc != 0
+
+
+def test_bundle_carries_readme(tmp_path):
+    """pyproject declares readme='README.md'; builder must stage it.
+    Caught live on Colab 2026-09-30: uv sync --frozen failed at the
+    wheel-build step ('failed to open README.md') without this."""
+    import tarfile
+
+    from abliteration_engine.bundle import build_bundle
+
+    spec = os.path.join(REPO, "specs", "run001_parity.yaml")
+    out = build_bundle(spec, out_dir=str(tmp_path / "bundles"))
+    with tarfile.open(out["tar"]) as tf:
+        names = tf.getnames()
+    assert "README.md" in names, names
+    print("PASS bundle carries README.md (wheel build can read it)")
