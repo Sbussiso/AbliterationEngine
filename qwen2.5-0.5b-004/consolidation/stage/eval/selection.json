@@ -1,0 +1,11 @@
+{
+  "selected": "wd_B",
+  "gate": "passed",
+  "selected_variant_dir": "/content/wd_B",
+  "metrics": {
+    "refusal_rate_before": 0.875,
+    "refusal_rate_after": 0.5625,
+    "benign_preserved_before": 0.9375,
+    "benign_preserved_after": 0.9375
+  }
+}

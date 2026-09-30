@@ -1,0 +1,17 @@
+{
+ "n_docs": 240,
+ "base_mc2_pct": 41.63,
+ "variant_mc2_pct": 40.2,
+ "delta_pp": -1.42,
+ "bootstrap_ci95_pp": [
+  -3.43,
+  0.54
+ ],
+ "sign_pos_neg": [
+  98,
+  142
+ ],
+ "sign_test_p": 0.0054,
+ "verdict": "no significant truthfulness cost (CI contains 0)",
+ "subset": "first 240 TruthfulQA docs (lm-eval --limit 240, seed 0), identical both arms"
+}

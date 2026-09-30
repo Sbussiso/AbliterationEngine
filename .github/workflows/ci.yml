@@ -1,0 +1,36 @@
+# CI: CPU-side gates on every PR (freeze decision 2). GPU stages stay
+# Colab-side (FTT-20); a PR that does not plan clean on CPU does not merge.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  cpu-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          cache-dependency-glob: uv.lock
+
+      - name: Install (CPU-only runtime + dev)
+        run: uv sync --frozen --extra dev
+
+      - name: Lint (src + conftest)
+        run: uv run --no-sync ruff check src/ conftest.py
+
+      - name: Pytest (packaging contract, Run-001 parity contract, eng smoke)
+        run: uv run --no-sync pytest tests/ harness_v3/smoke_test.py -q
+
+      - name: Shipped specs plan clean on CPU
+        run: |
+          for f in harness_v3/specs/*.yaml; do
+            echo "== $f =="
+            uv run --no-sync abliterate --spec "$f" validate
+            uv run --no-sync abliterate plan --spec "$f" > /dev/null
+          done

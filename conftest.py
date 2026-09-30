@@ -1,0 +1,12 @@
+"""Pytest path wiring: make `src/` (and repo root) importable in-place
+without installation. `harness_v3/eng` migrate-shims resolve to the
+package through the src path entry. Delete when FTT-20 removes the shim.
+"""
+import os
+import sys
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_SRC = os.path.join(_HERE, "src")
+for p in (_HERE, _SRC):
+    if os.path.isdir(p) and p not in sys.path:
+        sys.path.insert(0, p)

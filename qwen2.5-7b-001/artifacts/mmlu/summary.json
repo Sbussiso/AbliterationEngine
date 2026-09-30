@@ -1,0 +1,17 @@
+{
+  "base": {
+    "acc": 0.7177040307648483,
+    "stderr": 0.003582873460168762
+  },
+  "variant": {
+    "acc": 0.7177040307648483,
+    "stderr": 0.00358436054019163
+  },
+  "mmlu_base_pct": 71.77,
+  "mmlu_variant_pct": 71.77,
+  "mmlu_delta_pp": 0.0,
+  "guardrail_3pp": true,
+  "shot": 0,
+  "batch": 8,
+  "seed": 0
+}

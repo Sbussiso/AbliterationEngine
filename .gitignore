@@ -1,0 +1,27 @@
+**/tokenizer.json
+**/tokenizer_config.json
+**/__pycache__/
+**/*.pyc
+**/model.safetensors
+**/chat_template.jinja
+# Per-run research artifacts: models/weights/checkpoints never belong in git
+*.safetensors
+*.npy
+*.npz
+*.gguf
+*.ckpt
+*.bin
+consolidation/stage*/
+consolidation/stage_r2/
+variant_*/
+artifacts/*
+# Run 001 parity baseline (provenance for tests/parity contract, CI-runnable)
+!qwen2.5-0.5b-002/artifacts/probes_baseline.json
+!qwen2.5-0.5b-002/artifacts/probes_hook_ablated.json
+!qwen2.5-0.5b-002/artifacts/selection.json
+logs/
+*.log
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.venv/

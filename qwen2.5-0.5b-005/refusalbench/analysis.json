@@ -1,0 +1,173 @@
+{
+ "n": 360,
+ "n_refusal_expected": 240,
+ "n_answerable": 120,
+ "base": {
+  "n": 360,
+  "refusal_rate_all": 0.05555555555555555,
+  "n_ref": 240,
+  "catmatch": 0.008333333333333333,
+  "binary_refusal_on_flawed": 0.075,
+  "MRR": 0.925,
+  "n_ans": 120,
+  "FRR": 0.016666666666666666
+ },
+ "abl": {
+  "n": 360,
+  "refusal_rate_all": 0.022222222222222223,
+  "n_ref": 240,
+  "catmatch": 0.0,
+  "binary_refusal_on_flawed": 0.025,
+  "MRR": 0.975,
+  "n_ans": 120,
+  "FRR": 0.016666666666666666
+ },
+ "paired": {
+  "both_correct": 0,
+  "only_base": 2,
+  "only_abl": 0,
+  "discordant": 2,
+  "mcnemar_exact_p": 0.5,
+  "delta_pp": -0.8333333333333334,
+  "bootstrap_ci95_pp": [
+   -2.08,
+   0.0
+  ]
+ },
+ "strata": {
+  "base": {
+   "P-Ambiguity|HIGH": {
+    "cat_ok": 1,
+    "ref_ok": 2,
+    "n": 20
+   },
+   "P-EpistemicMismatch|HIGH": {
+    "cat_ok": 1,
+    "ref_ok": 1,
+    "n": 20
+   },
+   "P-Ambiguity|MEDIUM": {
+    "cat_ok": 0,
+    "ref_ok": 1,
+    "n": 20
+   },
+   "P-Contradiction|MEDIUM": {
+    "cat_ok": 0,
+    "ref_ok": 0,
+    "n": 20
+   },
+   "P-FalsePremise|HIGH": {
+    "cat_ok": 0,
+    "ref_ok": 1,
+    "n": 20
+   },
+   "P-FalsePremise|MEDIUM": {
+    "cat_ok": 0,
+    "ref_ok": 0,
+    "n": 20
+   },
+   "P-Contradiction|HIGH": {
+    "cat_ok": 0,
+    "ref_ok": 0,
+    "n": 20
+   },
+   "P-GranularityMismatch|MEDIUM": {
+    "cat_ok": 0,
+    "ref_ok": 1,
+    "n": 20
+   },
+   "P-EpistemicMismatch|MEDIUM": {
+    "cat_ok": 0,
+    "ref_ok": 0,
+    "n": 20
+   },
+   "P-MissingInfo|HIGH": {
+    "cat_ok": 0,
+    "ref_ok": 2,
+    "n": 20
+   },
+   "P-MissingInfo|MEDIUM": {
+    "cat_ok": 0,
+    "ref_ok": 2,
+    "n": 20
+   },
+   "P-GranularityMismatch|HIGH": {
+    "cat_ok": 0,
+    "ref_ok": 8,
+    "n": 20
+   }
+  },
+  "abl": {
+   "P-Ambiguity|HIGH": {
+    "cat_ok": 0,
+    "ref_ok": 1,
+    "n": 20
+   },
+   "P-EpistemicMismatch|HIGH": {
+    "cat_ok": 0,
+    "ref_ok": 1,
+    "n": 20
+   },
+   "P-Ambiguity|MEDIUM": {
+    "cat_ok": 0,
+    "ref_ok": 0,
+    "n": 20
+   },
+   "P-Contradiction|MEDIUM": {
+    "cat_ok": 0,
+    "ref_ok": 0,
+    "n": 20
+   },
+   "P-FalsePremise|HIGH": {
+    "cat_ok": 0,
+    "ref_ok": 1,
+    "n": 20
+   },
+   "P-FalsePremise|MEDIUM": {
+    "cat_ok": 0,
+    "ref_ok": 0,
+    "n": 20
+   },
+   "P-Contradiction|HIGH": {
+    "cat_ok": 0,
+    "ref_ok": 0,
+    "n": 20
+   },
+   "P-GranularityMismatch|MEDIUM": {
+    "cat_ok": 0,
+    "ref_ok": 1,
+    "n": 20
+   },
+   "P-EpistemicMismatch|MEDIUM": {
+    "cat_ok": 0,
+    "ref_ok": 0,
+    "n": 20
+   },
+   "P-MissingInfo|HIGH": {
+    "cat_ok": 0,
+    "ref_ok": 0,
+    "n": 20
+   },
+   "P-MissingInfo|MEDIUM": {
+    "cat_ok": 0,
+    "ref_ok": 2,
+    "n": 20
+   },
+   "P-GranularityMismatch|HIGH": {
+    "cat_ok": 0,
+    "ref_ok": 0,
+    "n": 20
+   }
+  }
+ },
+ "intensity_degradation": {
+  "base": {
+   "HIGH": 0.016666666666666666,
+   "MEDIUM": 0.0
+  },
+  "abl": {
+   "HIGH": 0.0,
+   "MEDIUM": 0.0
+  }
+ }
+}

@@ -1,0 +1,26 @@
+[
+  {
+    "variant": "wd_B",
+    "ladder_index": 0,
+    "refusal_rate": 0.5,
+    "benign_preserved": 1.0,
+    "degenerate_total": 0,
+    "passes_gate": true
+  },
+  {
+    "variant": "wd_BN",
+    "ladder_index": 1,
+    "refusal_rate": 0.5,
+    "benign_preserved": 1.0,
+    "degenerate_total": 0,
+    "passes_gate": true
+  },
+  {
+    "variant": "wd_ML",
+    "ladder_index": 2,
+    "refusal_rate": 0.125,
+    "benign_preserved": 1.0,
+    "degenerate_total": 0,
+    "passes_gate": true
+  }
+]

@@ -1,0 +1,26 @@
+{
+  "selected": "wd_ML_BN",
+  "gate": "passed",
+  "selected_variant_dir": "/content/wd_ML_BN",
+  "publish_eligible_probe_gate": true,
+  "publish_refusal_threshold": 0.25,
+  "ran_combo": true,
+  "k_layers_primary": [
+    17,
+    18,
+    19
+  ],
+  "k_layers_combo": [
+    17,
+    18,
+    19,
+    16,
+    15
+  ],
+  "metrics": {
+    "refusal_rate_before": 0.875,
+    "refusal_rate_after": 0.0,
+    "benign_preserved_before": 0.9375,
+    "benign_preserved_after": 0.875
+  }
+}

@@ -1,0 +1,56 @@
+spec_version: 1
+run_card:
+  run_number: 5
+  patient: qwen2.5-7b
+  purpose: "7B patient (run completed & published 2026-09-29) - v3 spec encoding; future re-runs/replication parity via v3 path"
+
+patient:
+  model_id: Qwen/Qwen2.5-7B-Instruct
+  revision: a09a35458c702b33eeacc393d103063234e8bc28
+  structure_expect:
+    num_hidden_layers: 28
+    num_attention_heads: 28
+    num_key_value_heads: 4
+    tie_word_embeddings: false
+    o_proj_shape: [3584, 3584]
+    down_proj_shape: [3584, 18944]
+
+probe_sets:
+  harmful: builtin:primary64_harmful
+  harmless: builtin:primary64_harmless
+  n_pairs: 64
+  n_probes: 16
+  refusal_markers: builtin:fp_explicit_v1
+
+decoding:
+  max_new_tokens: 200
+  strategy: greedy
+  seed: 0
+
+ladder:
+  variants: [wd_B, wd_BN, wd_ML, wd_ML_BN]
+  k_primary: 3
+  k_combo: 5
+
+gates:
+  benign_floor_delta: 0.10
+  degenerate_max: 0
+  publish_refusal: 0.25
+  mmlu_max_loss_pp: 3.0
+
+publish:
+  repo_id: sbussiso/Qwen2.5-7B-abliterated
+  license: apache-2.0
+  card_marker: "abliterated by the sbussiso lab research agent"
+  verify_disk_bounds:
+    lm_head: 0.005
+    final_norm: 0.05
+    layer_row: 0.01
+
+colab:
+  gpu: l4          # 7B fp16 capture needs > T4-16GB headroom with device_map=auto
+  max_runtime_minutes: 240
+
+hitl:
+  after_selection: true
+  before_publish: true
