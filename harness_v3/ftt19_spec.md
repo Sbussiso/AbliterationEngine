@@ -127,6 +127,18 @@ baseline. Parity = for a `run001.yaml` spec execution, artifacts equal within:
 
 ## 6. Open questions for dev-workstation (blocking freeze)
 
+RESOLVED 2026-09-29 (packaging PR, commit 7f0927e; details in
+FREEZE_HANDOFF.md):
+1. src-layout `src/abliteration_engine/` (name `abliteration_engine`);
+   `eng/` = migrate-only shim, deletes at end of FTT-20.
+2. dataclass + hand-rolled checks (no pydantic); CI YES —
+   .github/workflows/ci.yml runs pytest + ruff + plan/validate for every
+   shipped spec on every PR (GitHub wiring pending gh auth).
+3. Verb set as proposed; subparser CLI, `--spec` accepted pre- or
+   post-verb; `--i-know-this-spends-quota` semantics unchanged.
+4. BOTH: parity lives as `abliterate parity` (eng subcommand) with the
+   Run-001 contract pinned in `tests/parity/test_run001_contract.py`.
+
 1. Package layout — `eng/` with `eng/{core.py, spec.py, data.py, cli.py}` or src-layout `src/eng/...`?
 2. Where spec validation lives (pydantic vs dataclass+manual) and whether CI
    runs `--dry-run` on all shipped configs on every PR (recommend yes).
