@@ -94,6 +94,14 @@ def load_spec(path):
                         "from the coherence scan)")
     if int(lad.get("k_primary", 3)) < 1 or int(lad.get("k_combo", 5)) < 1:
         raise SpecError("ladder k_primary/k_combo must be >= 1")
+    # FTT-20 day-2 lesson (first full-GPU ladder run, Run 002): defaults were
+    # validated here but never INJECTED, so edits.run_ladder's lad["k_primary"]
+    # KeyError'd at ladder start on a spec that omitted them. Validate AND
+    # inject — a spec that plans green must run green.
+    if "k_primary" not in lad:
+        lad["k_primary"] = 3  # v2 mission-004 default (ABL3_K_PRIMARY)
+    if "k_combo" not in lad:
+        lad["k_combo"] = 5    # v2 mission-004 default (ABL3_K_COMBO)
 
     g = dict(_GATES_DEFAULT)
     g.update(raw.get("gates") or {})
