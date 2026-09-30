@@ -346,6 +346,8 @@ def write_run_config(spec, out_dir, extra=None):
         "probes": {k: v for k, v in spec["probe_sets"].items()},
         "decoding": spec["decoding"],
         "gates": spec["gates"],
+        "hooks": (spec.get("hooks") or {"scope": "selected"}),
+        "ladder_variants": spec["ladder"]["variants"],
         "versions": {"python": platform.python_version(),
                      "torch": (torch.__version__ if
                                (torch := sys.modules.get("torch")) else None)},
