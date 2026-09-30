@@ -457,4 +457,13 @@ def from_spec(spec):
                "structure": struct,
                "baseline": base_sum, "hook_ablated": hook_sum,
                "wall_s": round(time.time() - t_start, 1)}
+    # stage-5 gating (v1 amendment): empty ladder = hook-only
+    # characterization run (Run 000 semantics) - stage 5 SKIPPED, no
+    # selection.json, publish gated off. Enforced here, not just documented
+    # in the plan note (dev-workstation freeze review 2026-09-30).
+    summary["ladder_skipped"] = not spec["ladder"]["variants"]
+    if summary["ladder_skipped"]:
+        print("[5/6] ladder SKIPPED (empty variants - hook-only "
+              "characterization run)", flush=True)
+        print("[6/6] publish GATED OFF for hook-only runs", flush=True)
     return summary
