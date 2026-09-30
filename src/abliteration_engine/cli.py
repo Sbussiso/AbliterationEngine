@@ -143,6 +143,11 @@ def main(argv=None):
     common.add_argument("--run-dir", default=argparse.SUPPRESS,
                         help="[parity] v3 artifacts dir")
     common.add_argument("--i-know-this-spends-quota", action="store_true")
+    common.add_argument("--variant-dir", default=argparse.SUPPRESS,
+                        help="[publish] local dir holding selected variant")
+    common.add_argument("--mmlu", default=argparse.SUPPRESS,
+                        help="[publish] mmlu_summary.json path")
+    common.add_argument("--i-know-this-publishes", action="store_true")
     common.add_argument("--out-dir", default="bundles",
                         help="[bundle] output dir for the tarball")
 
@@ -167,8 +172,20 @@ def main(argv=None):
     if args.verb == "run":
         return run(args.spec,
                    getattr(args, "i_know_this_spends_quota", False))
-    # GPU-bound single-stage verbs land in FTT-20 with the package
-    raise SystemExit(f"verb '{args.verb}' not implemented yet (FTT-20)")
+    if args.verb == "ladder":
+        from abliteration_engine.pipeline import ladder_phase
+        return ladder_phase(args.spec)
+    if args.verb == "mmlu":
+        from abliteration_engine.mmlu import mmlu_phase
+        return mmlu_phase(args.spec)
+    if args.verb == "publish":
+        from abliteration_engine.publish import publish_phase
+        if not (getattr(args, "variant_dir", None)
+                and getattr(args, "mmlu", None)):
+            ap.error("publish needs --variant-dir and --mmlu")
+        return publish_phase(args.spec, args.variant_dir, args.mmlu,
+                             assume_publish=args.i_know_this_publishes)
+    raise SystemExit(f"verb '{args.verb}' not implemented yet")
 
 
 if __name__ == "__main__":
