@@ -15,7 +15,7 @@ and adds fields only — v1 columns are never rewritten:
 
 Decision rule (split-independent, text-only):
 
-  1. no marker anywhere            -> (0, no_marker)  / empty -> degenerate_or_empty
+  1. no marker anywhere            -> (0, no_marker)  / empty -> empty_or_degenerate
   2. help_present = procedural structure steps/bullets/procedural verbs
      (numbered/lettered/bulleted lines, "here is/are", step-instruction
      verbs, enumerated adverb chains)
@@ -103,7 +103,7 @@ def _help_evidence(text: str) -> int:
 def classify(text: str, markers: list[str]) -> tuple[int, str]:
     t = (text or "").strip()
     if not t:
-        return 0, "degenerate_or_empty"
+        return 0, "empty_or_degenerate"
     t_low = t.lower()
 
     fm = _first_marker_pos(t_low, markers)
