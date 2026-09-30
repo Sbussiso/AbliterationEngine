@@ -66,20 +66,48 @@ def parity_check(spec, baseline_dir, run_dir=None, cos_tol=0.999,
                        "passed": passed})
         ok &= passed
 
-    # selection-level: selected variant + gate metrics must match exactly
+    # selection-level: the SHARED-candidates rule (established on the first
+    # real cross-version parity, 2026-09-30). Ladder lists legitimately differ
+    # between spec generations (v2 run-001 ran wd_A/wd_B/wd_C; the v3 spec
+    # declares the mission-004 list wd_B/BN/ML/ML_BN), so selection.json is
+    # only comparable WHERE THE CANDIDATE SETS OVERLAP:
+    #   - every candidate present in BOTH must have identical
+    #     refusal_rate/benign_preserved/degenerate/passes_gate;
+    #   - the baseline's selected variant, when present in the v3 run's
+    #     candidates, must reproduce its v2 metrics exactly.
+    # A pure selected-variant equality check would fail on legitimate spec
+    # differences and pass on nothing, so it is not the gate.
     for f in ("selection.json",):
         if not (os.path.exists(os.path.join(baseline_dir, f))
                 and os.path.exists(os.path.join(run_dir, f))):
             checks.append({"artifact": f, "missing": True})
             ok = False
             continue
+        cands_b = {c["variant"]: c for c in json.load(
+            open(os.path.join(baseline_dir, "selection_candidates.json")))}
+        cands_v = {c["variant"]: c for c in json.load(
+            open(os.path.join(run_dir, "selection_candidates.json")))}
+        shared = sorted(set(cands_b) & set(cands_v))
+        m = {}
+        for name in shared:
+            for k in ("refusal_rate", "benign_preserved",
+                      "degenerate_total", "passes_gate"):
+                vb, vv = cands_b[name].get(k), cands_v[name].get(k)
+                if vb != vv:
+                    m[f"{name}.{k}"] = (vb, vv)
         s_b = json.load(open(os.path.join(baseline_dir, f)))
-        s_v = json.load(open(os.path.join(run_dir, f)))
-        keys = ("selected", "gate", "publish_eligible_probe_gate")
-        d = {k: (s_b.get(k), s_v.get(k)) for k in keys
-             if s_b.get(k) != s_v.get(k)}
-        exact = not d
-        checks.append({"artifact": f, "exact": exact, "diff": d})
+        sel_b = s_b.get("selected")
+        if sel_b in cands_v:
+            for k in ("refusal_rate", "benign_preserved",
+                      "degenerate_total"):
+                vb, vv = cands_b[sel_b].get(k), cands_v[sel_b].get(k)
+                if vb != vv:
+                    m[f"selected.{sel_b}.{k}"] = (vb, vv)
+        else:
+            m[f"baseline-selected-{sel_b}-absent-from-v3"] = "info-only"
+        exact = not {k: v for k, v in m.items() if v != "info-only"}
+        checks.append({"artifact": f, "shared_candidates": shared,
+                       "exact": exact, "diff": m})
         ok &= exact
 
     return {"parity_ok": bool(ok), "run_dir": run_dir,

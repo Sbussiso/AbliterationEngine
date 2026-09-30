@@ -1,0 +1,61 @@
+{
+  "engine": "eng-v3",
+  "spec_hash": "5c33e24fb769cdcc61a58434263b876e2d63ea4b3b77ea2571c3a4b9dcf18c7d",
+  "spec_path": "/content/run006/specs/qwen25_0p5b_run000_recreation.yaml",
+  "spec_sha256": "e0f53c55f9779577ae874bdce70c09d545592c85338d9256027e711760bc3ea1",
+  "generated_at_utc": "2026-09-30T21:41:47.520990+00:00",
+  "run_card": {
+    "run_number": 6,
+    "patient": "qwen2.5-0.5b",
+    "purpose": "v3 recreation of Run 000 (FTT-12) - harness-validation target chosen by user 2026-09-30"
+  },
+  "patient": {
+    "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+    "revision": "7ae557604adf67be50417f59c2c2f167def9a775"
+  },
+  "structure": {
+    "num_hidden_layers": 24,
+    "hidden_size": 896,
+    "intermediate_size": 4864,
+    "vocab_size": 151936,
+    "num_attention_heads": 14,
+    "num_key_value_heads": 2,
+    "tie_word_embeddings": true,
+    "o_proj_shape": [
+      896,
+      896
+    ],
+    "down_proj_shape": [
+      896,
+      4864
+    ],
+    "lm_head_shape": [
+      151936,
+      896
+    ],
+    "lm_head_is_input_emb": true
+  },
+  "probes": {
+    "harmful": "builtin:primary64_harmful",
+    "harmless": "builtin:primary64_harmless",
+    "n_pairs": 64,
+    "n_probes": 64,
+    "refusal_markers": "builtin:fp_explicit_v1"
+  },
+  "decoding": {
+    "max_new_tokens": 200,
+    "strategy": "greedy",
+    "seed": 0
+  },
+  "gates": {
+    "benign_floor_delta": 0.1,
+    "degenerate_max": 0,
+    "publish_refusal": 0.25,
+    "mmlu_max_loss_pp": 3.0
+  },
+  "versions": {
+    "python": "3.13.15",
+    "torch": "2.11.0+cu128"
+  },
+  "gpu": "Tesla T4"
+}
