@@ -29,7 +29,27 @@ jobs:
 
       - name: Shipped specs plan clean on CPU
         run: |
+          # Mirror integrity: specs/ is the machine-read dir (bundle + CI
+          # consume it), harness_v3/specs/ is the freeze-review mirror.
+          # Files present in BOTH dirs must be byte-identical; a file
+          # living in only one dir is intentional (freeze-only or
+          # machine-only) - drift on the shared set fails CI.
+          fail=0
+          for f in specs/*.yaml; do
+            base=$(basename "$f")
+            if [ -f "harness_v3/specs/$base" ]; then
+              cmp -s "$f" "harness_v3/specs/$base" || \
+                { echo "SPEC MIRROR DRIFT: $base"; fail=1; }
+            fi
+          done
           for f in harness_v3/specs/*.yaml; do
+            base=$(basename "$f")
+            if [ -f "specs/$base" ]; then
+              cmp -s "$f" "specs/$base" || fail=1
+            fi
+          done
+          [ "$fail" -eq 0 ] || exit 1
+          for f in specs/*.yaml harness_v3/specs/*.yaml; do
             echo "== $f =="
             uv run --no-sync abliterate --spec "$f" validate
             uv run --no-sync abliterate plan --spec "$f" > /dev/null
