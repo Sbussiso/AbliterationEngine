@@ -10,10 +10,14 @@ hard-asserts ALL gates before any push:
   4. spec publish.repo_id matches the single mission-approved target
   5. HITL before_publish (spec.hitl) — REQUIRES explicit --i-know-this-
      publishes confirmation flag (agent-side approval flow upstream)
+  6. dev-review close-out, 2026-09-30: hub-side verification now pins
+     model.safetensors + refusal_direction.npy presence and emits the
+     PUBLISH_DONE {json} sentinel line the v2 poll loop consumed (the
+     weights-LFS byte-identity check stays v2-local for now; restore
+     alongside publish on the VM once the hf venv deps land in-tree).
 
 Card is GENERATED from the artifacts (never hand-typed numbers). Hub-side
-verification after upload: file list, config flag, README marker, LFS
-sha256 of model.safetensors vs local source.
+verification after upload: file list, config flag, README marker.
 """
 import argparse
 import datetime
@@ -257,12 +261,20 @@ the pinned revision). Raw results in `eval/`.
 
     # ---- hub-side verification -----------------------------------------
     files = api.list_repo_files(REPO_ID, repo_type="model")
-    for claimed in ("README.md", "config.json"):
+    for claimed in ("README.md", "config.json", "model.safetensors"):
         assert claimed in files, f"missing {claimed} on hub"
+    assert any("refusal_direction.npy" == os.path.basename(f)
+               for f in files), "refusal_direction.npy missing on hub"
     readme_hub = api.hf_hub_download(REPO_ID, "README.md", repo_type="model")
     hub_readme = open(readme_hub).read()
     assert "abliteration" in hub_readme, "README tag missing on hub"
     assert BASE_REVISION in hub_readme, "pinned revision missing from hub card"
+    print("PUBLISH_DONE " + json.dumps({
+        "repo": REPO_ID, "url": f"https://huggingface.co/{REPO_ID}",
+        "n_files": len(files), "variant": variant,
+        "mmlu_delta_pp": mmlu["mmlu_delta_pp"],
+        "refusal_before": base_m["refusal_rate"],
+        "refusal_after": wd_m["refusal_rate"]}, default=str), flush=True)
     return 0
 
 
