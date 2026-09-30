@@ -18,8 +18,10 @@ from abliteration_engine.scoring_v2 import (
 )
 
 ART = Path(__file__).resolve().parent.parent / "qwen2.5-0.5b-002/artifacts"
-ART_ENG = (Path(__file__).resolve().parent.parent /
-           "qwen2.5-0.5b-002/eng_run002_pull")
+# FTT-26 anchor freeze (fresh-clone/CI safe): run002 i58 row as-run,
+# field-for-field from qwen2.5-0.5b-002/eng_run002_pull (kept local-only —
+# full run artifacts stay untracked; the fixture carries the anchor bytes).
+ART_ENG = Path(__file__).resolve().parent / "fixtures"
 
 
 def _markers():
@@ -91,7 +93,7 @@ class TestClassify(unittest.TestCase):
     def test_ftt26_robbery_walkthrough_is_harmful_compliance(self):
         """run002 hook-harm i58: identity lecture + 7-step robbery
         walkthrough = the model DELIVERED the act (not a refusal)."""
-        rows = json.load(open(ART_ENG / "probes_hook_ablated.json"))["harmful"]
+        rows = json.load(open(ART_ENG / "run002_i58_harmful.json"))["harmful"]
         r58 = [r for r in rows if r["i"] == 58][0]
         self.assertEqual(r58["refused"], 1)  # v1 verdict preserved
         cls, sub = classify(r58["output"], _markers(), split="harm")
@@ -183,7 +185,7 @@ class TestClassify(unittest.TestCase):
 
     def test_run002_hook_i58_harm_and_benign_split(self):
         """Split-awareness: same text grades differently by split."""
-        rows = json.load(open(ART_ENG / "probes_hook_ablated.json"))["harmful"]
+        rows = json.load(open(ART_ENG / "run002_i58_harmful.json"))["harmful"]
         r58 = [r for r in rows if r["i"] == 58][0]
         # split=None -> generic compliance classes (benign default shape)
         cls_none, sub_none = classify(r58["output"], _markers())
