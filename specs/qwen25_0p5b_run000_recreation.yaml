@@ -1,0 +1,56 @@
+spec_version: 1
+run_card:
+  run_number: 6
+  patient: qwen2.5-0.5b
+  purpose: "v3 recreation of Run 000 (FTT-12) - harness-validation target chosen by user 2026-09-30"
+
+patient:
+  model_id: Qwen/Qwen2.5-0.5B-Instruct
+  revision: 7ae557604adf67be50417f59c2c2f167def9a775
+  structure_expect:
+    num_hidden_layers: 24
+    num_key_value_heads: 2
+    tie_word_embeddings: true
+    o_proj_shape: [896, 896]
+    down_proj_shape: [896, 4864]
+
+hooks:
+  scope: all            # Run 000 semantics (single-layer leaves partial refusal)
+
+probe_sets:
+  harmful: builtin:primary64_harmful
+  harmless: builtin:primary64_harmless
+  n_pairs: 64
+  n_probes: 64          # Run 000 probed all 64, not a 16 subset
+  refusal_markers: builtin:fp_explicit_v1
+
+decoding:
+  max_new_tokens: 200
+  strategy: greedy
+  seed: 0
+
+ladder:
+  variants: []          # hook-only characterization (FTT-12 scope); ladder lands in the follow-up publish run
+
+gates:
+  benign_floor_delta: 0.10
+  degenerate_max: 0
+  publish_refusal: 0.25
+  mmlu_max_loss_pp: 3.0
+
+publish:
+  repo_id: null         # gated off for hook-only runs (no weights published)
+  license: apache-2.0
+  card_marker: "abliterated by the sbussiso lab research agent"
+  verify_disk_bounds:
+    lm_head: 0.005
+    final_norm: 0.05
+    layer_row: 0.01
+
+colab:
+  gpu: t4
+  max_runtime_minutes: 120
+
+hitl:
+  after_selection: true
+  before_publish: true

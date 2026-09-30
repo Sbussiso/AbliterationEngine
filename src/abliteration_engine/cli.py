@@ -45,9 +45,11 @@ def plan(spec_path):
     print(f"markers: builtin={ps['refusal_markers']} "
           f"({len(markers)} markers)")
     print(f"decoding: {spec['decoding']}")
-    print(f"ladder: {spec['ladder']['variants']} "
-          f"k_primary={spec['ladder']['k_primary']} "
-          f"k_combo={spec['ladder']['k_combo']}")
+    lad_keys = {k: v for k, v in spec["ladder"].items()
+                if k != "variants"} if spec["ladder"].get("variants") \
+        else {"note": "empty ladder = hook-only characterization "
+                      "(stage 5 + publish gated off)"}
+    print(f"ladder: {spec['ladder']['variants']} {lad_keys}")
     print(f"gates: {spec['gates']}")
     pub = spec.get("publish") or {}
     if pub:

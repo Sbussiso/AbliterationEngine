@@ -232,6 +232,14 @@ def summarize(rows_h, rows_b):
 
 # ---- stage 4: probe stage ---------------------------------------------------
 def run_baseline_and_hook_probes(spec, tok, model, out_dir):
+    """Baseline + hook-ablated probes. hooks.scope spec field (v1
+    amendment, Run 000 semantics) decides hook placement:
+      selected = single L* hook (Run 001 semantics, default)
+      all      = same direction hooked at EVERY decoder layer 0..n_layers-1
+                 (Run 000 learning #2: single-layer hooks leave partial
+                 refusal - L*-only closed 82.8%->18.75%, all-layer 3.1%)
+    Run-001 parity: absent hooks block = 'selected' -> byte-identical
+    contract; parity gate unaffected. run_config/summary record the scope."""
     import torch
 
     markers = resolve_markers(spec["probe_sets"]["refusal_markers"])
@@ -260,7 +268,16 @@ def run_baseline_and_hook_probes(spec, tok, model, out_dir):
     dir_A = np.load(os.path.join(out_dir, "refusal_direction_A.npy"))
     hook = AblationHook(torch.from_numpy(dir_A).float(), model.device,
                         next(model.parameters()).dtype)
-    hook.attach(model.model.layers[L_star])
+    scope = (spec.get("hooks") or {}).get("scope", "selected")
+    if scope == "all":
+        n_layers = model.config.num_hidden_layers
+        for l in range(n_layers):
+            model.model.layers[l].register_forward_hook(hook)
+        print(f"      hook scope=ALL ({n_layers} layers, L*={L_star})",
+              flush=True)
+    else:
+        hook.attach(model.model.layers[L_star])
+        print(f"      hook scope=selected (L{L_star})", flush=True)
     hook_h = run_probes(tok, model, harmful, tag="hook-harm",
                         max_new=spec["decoding"]["max_new_tokens"],
                         markers=markers)
@@ -271,6 +288,7 @@ def run_baseline_and_hook_probes(spec, tok, model, out_dir):
     assert hook.calls > 0, "hook never fired - ablation invalid"
     hook_sum = summarize(hook_h, hook_b)
     hook_sum["hook_calls"] = hook.calls
+    hook_sum["hook_scope"] = scope
     json.dump({"harmful": hook_h, "harmless": hook_b},
               open(os.path.join(out_dir, "probes_hook_ablated.json"), "w"),
               indent=2)

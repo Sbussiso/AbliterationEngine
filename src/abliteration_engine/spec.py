@@ -83,9 +83,12 @@ def load_spec(path):
 
     lad = raw["ladder"]
     variants = lad.get("variants", _LADDER_ALL)
-    if not variants or not set(variants) <= set(_LADDER_ALL):
-        raise SpecError(f"ladder.variants must be a non-empty subset of "
-                        f"{_LADDER_ALL}")
+    if not set(variants) <= set(_LADDER_ALL):
+        raise SpecError(f"ladder.variants must be a subset of {_LADDER_ALL}")
+    # NOTE (v1 amendment 2026-09-30): empty variants = hook-only
+    # characterization run (Run 000 semantics): stage 5 skipped, no
+    # selection.json, publish stage gated off. Optional 'hooks' block
+    # below carries the hook-scope choice for exactly this run shape.
     if "wd_ML_BN" in variants and "wd_ML" not in variants:
         raise SpecError("ladder: wd_ML_BN presumes wd_ML (top-K layers come "
                         "from the coherence scan)")
@@ -99,7 +102,20 @@ def load_spec(path):
     if g["mmlu_max_loss_pp"] <= 0:
         raise SpecError("gates.mmlu_max_loss_pp must be > 0")
 
+    # v1 amendment: optional hooks block, validated but never default-injected
+    # (absent = engine treats as {"scope": "selected"} at use time; keeps
+    # normalized spec hashes stable for existing specs)
+    hooks = raw.get("hooks") or {}
+    if not isinstance(hooks, dict):
+        raise SpecError("hooks must be a mapping")
+    scope = hooks.get("scope", "selected")
+    if scope not in ("selected", "all"):
+        raise SpecError(f"hooks.scope must be 'selected' or 'all', "
+                        f"got {scope!r}")
+
     out = dict(raw)
+    if hooks:
+        out["hooks"] = {"scope": scope}
     out["gates"] = g
     out["ladder"] = {**lad, "variants": list(variants)}
     out["decoding"] = {**dec, "seed": int(dec.get("seed", 0))}
