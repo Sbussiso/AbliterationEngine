@@ -10,10 +10,8 @@ The bundle is the one-upload Colab artifact; the operator contract is:
 - tarball is reproducible per-spec-content and named with the canonical
   run dir name (no two runs share a dir).
 """
-import io
 import json
 import os
-import subprocess
 import tarfile
 
 import pytest
