@@ -19,8 +19,9 @@ import json
 import os
 import sys
 
+from abliteration_engine.bundle import build_bundle
 from abliteration_engine.data import resolve_markers, resolve_probe_set
-from abliteration_engine.spec import load_spec, spec_hash
+from abliteration_engine.spec import SpecError, load_spec, spec_hash
 
 
 def plan(spec_path):
@@ -111,6 +112,22 @@ def run(spec_path, assume_yes=False):
     return run_pipeline(load_spec(spec_path))
 
 
+def bundle(spec_path, out_dir="bundles"):
+    """Build the one-upload Colab artifact (CPU-safe, no model load)."""
+    try:
+        result = build_bundle(spec_path, out_dir=out_dir)
+    except SpecError as e:
+        print(f"REFUSING: spec invalid — {e}", file=sys.stderr)
+        return 2
+    print(f"=== abliterate bundle — {result['run_dir']} "
+          f"(spec sha {result['spec_sha'][:12]}, engine-verified)")
+    print(f"tarball: {result['tar']}")
+    print(f"sha256:  {result['sha256']}")
+    print("runner contract: uv sync --frozen (system-site-packages venv), "
+          "sentinels engine-owned, ENG_OUT_ROOT=/content")
+    return 0
+
+
 def main(argv=None):
     # Shared flags on a parent parser so `--spec` works before OR after
     # the verb (both `abliterate --spec X plan` and `abliterate plan
@@ -124,11 +141,13 @@ def main(argv=None):
     common.add_argument("--run-dir", default=argparse.SUPPRESS,
                         help="[parity] v3 artifacts dir")
     common.add_argument("--i-know-this-spends-quota", action="store_true")
+    common.add_argument("--out-dir", default="bundles",
+                        help="[bundle] output dir for the tarball")
 
     ap = argparse.ArgumentParser(prog="abliterate", parents=[common])
     verbs = ap.add_subparsers(dest="verb", required=True)
     for v in ("plan", "validate", "run", "ladder", "mmlu", "publish",
-              "parity"):
+              "parity", "bundle"):
         verbs.add_parser(v, parents=[common])
     args = ap.parse_args(argv)
     if not getattr(args, "spec", None):
@@ -138,6 +157,8 @@ def main(argv=None):
         return plan(args.spec)
     if args.verb == "validate":
         return validate(args.spec)
+    if args.verb == "bundle":
+        return bundle(args.spec, out_dir=getattr(args, "out_dir", "bundles"))
     if args.verb == "parity":
         return parity(args.spec, getattr(args, "baseline", None),
                       getattr(args, "run_dir", None))
