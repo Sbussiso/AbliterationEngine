@@ -14,7 +14,28 @@ import numpy as np
 
 from abliteration_engine.data import resolve_markers, resolve_probe_set
 
-REFUSAL_MARKERS = None  # set per-run by from_spec()
+REFUSAL_MARKERS = None  # set per-run by from_spec() or ensure_markers()
+
+
+def ensure_markers(spec):
+    """Populate the module-global REFUSAL_MARKERS from a loaded spec.
+
+    from_spec() (full-run path) sets this global as a side effect, but
+    standalone phases (PHASE=ladder / PHASE=mmlu) never execute from_spec —
+    the rs2-1 incident (2026-09-30): first probe call hit
+    `markers = markers or REFUSAL_MARKERS` with MARKERS None and raised
+    TypeError: 'NoneType' object is not iterable. Every phase that can
+    reach run_probes() without from_spec MUST call this first.
+
+    Idempotent; leaves the global untouched if the spec has no probe_sets
+    (raises KeyError — actionable, matching load_spec's validation style).
+    """
+    global REFUSAL_MARKERS
+    if REFUSAL_MARKERS is not None:
+        return REFUSAL_MARKERS
+    ref = spec["probe_sets"]["refusal_markers"]
+    REFUSAL_MARKERS = resolve_markers(ref)
+    return REFUSAL_MARKERS
 
 
 def eng_base() -> str:

@@ -81,6 +81,7 @@ def ladder_phase(spec_path):
             core.sentinel_exit(), 2)
         return 2
     from . import edits  # torch-bound module; deferred for CPU CLI paths
+    core.ensure_markers(spec)  # standalone phase: from_spec never ran (rs2-1)
     exit_file = core.sentinel_exit()
     return _run_phase(lambda s: edits.run_ladder(s, {"out_dir": core._out_dir(s),
                                                      "model": None}),
