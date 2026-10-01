@@ -131,8 +131,25 @@ notify "REAPERSPLIT stage $SN launched" "phase=$STAGE — runner detached+verifi
 log "launched $STAGE on $SN"
 
 # wait for completion markers (poll every 4 min, up to 12 iters = 48 min)
+LAUNCH_TS=$(date +%s)
+FIT="${FIT:-3600}"          # per-session lease seconds (declared on the
+                            # assignment wire: fit:3600 GPU / fit:7200 CPU)
+DEADLINE=$(( FIT * 3 / 4 )) # 45 min at fit=3600; 15-min reaper margin
+LEASE_PROBE_DONE=0
 for i in $(seq 1 12); do
   sleep 240
+  # passive lease-expiry probe: one T+~last-window exec writes+reads back a
+  # file through the SAME proxy — discriminates proxy-path death (write 200s
+  # now, session 404s before lease end) from true VM death. Zero cost.
+  NOW=$(( $(date +%s) - LAUNCH_TS ))
+  if [ "$LEASE_PROBE_DONE" -eq 0 ] && [ "$NOW" -ge $(( DEADLINE + 180 )) ]; then
+    printf 'import os, time\nt=int(time.time())\nopen("/content/LEASE_PROBE", "w").write(str(t))\nback=open("/content/LEASE_PROBE").read()\nprint("LEASE_PROBE_T", t, "READBACK_OK" if back == str(t) else "READBACK_FAIL")\n' > /tmp/lp_s.py
+    chmod 644 /tmp/lp_s.py
+    $COLAB upload -s "$SN" /tmp/lp_s.py /tmp/lp_s.py 2>&1 | tail -1
+    printf 'exec(open("/tmp/lp_s.py").read())\n' | $COLAB exec -s "$SN" --timeout 90 2>&1 | grep LEASE_PROBE_T | tee -a "$LOG"
+    LEASE_PROBE_DONE=1
+    log "lease-probe receipt written (proxy liveness at T=$(( NOW / 60 ))min)"
+  fi
   cat > /tmp/poll_s.py <<'PYEOF'
 import os, re
 out = open("/content/phase_out.log").read() if os.path.exists("/content/phase_out.log") else ""
