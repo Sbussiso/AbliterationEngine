@@ -7,9 +7,7 @@
 **Status:** DRAFT — Results pending wd_ML_BN re-run + MMLU (see §Results)
 
 ## Abstract
-[PENDING — two endings, pick at close]
-- **E1 (composite clears gate)**: We present a persistent-refusal-removal recipe for Qwen2.5-1.5B-Instruct built from a ladder of weight-space refusal-direction edits. A multi-site composite (wd_ML_BN: MLP/down_proj rows + normalization output) reduces harmful-prompt refusal from 98.4% to under 25% while preserving benign helpfulness, passing an MMLU loss guardrail (<3pp); the published artifact demonstrates that the 0.5B recipe generalizes to 1.5B with site-count adjustments.
-- **E2 (composite fails gate)**: We measure the scale behavior of persistent refusal-direction edits on Qwen2.5-1.5B-Instruct across a full site-count ladder. While an inference-time hook achieves near-total refusal removal (1/64 v1 → 0/64 v2), no persistent weight-edit reaches ≤25% residual refusal on the 64-probe fixture (best: wd_ML at 42.2% with 100% benign preservation); we attribute this to thin-gate geometry at intermediate scale and quantify the hook-vs-persistent tradeoff for practitioners.
+We measure the scale behavior of persistent refusal-direction weight edits on Qwen/Qwen2.5-1.5B-Instruct (pinned revision 989aa798) across a full multi-site ladder on a fixed 64-probe fixture. An inference-time hook achieves near-total refusal removal (1/64 v1 → 0/64 v2 true refusals) with benign behavior improved (3→1 flagged benign probes), but no persistent weight edit reaches the ≤25% publish bar: lm_head-only spaces re-arm to 82.8%, a K=3 multi-layer edit cuts residual to 42.2% (with a perfect 64/64 benign side), and the selected K=5 composite reaches 34.4% (benign 87.5%) — its MMLU guardrail passes at Δ−0.11pp, 30× inside the limit. We read this as thin-gate geometry at intermediate scale: utility-destroying edits are easy, refusal-destroying persistent edits saturate, and the stage-A direction path itself is bit-stable (row-identical probe files across three independent Colab instances). No artifact is published, by the designed gate; the verdict and the measured session-lease reaper are the deliverables.
 
 ## Background & Motivation
 - User-facing goal: useful open-weight abliterated models (the 0.5B artifact sbussiso/Qwen2.5-0.5B-abliterated exists; FTT-14/Run-003 paper 372f46635318).
@@ -57,7 +55,7 @@
 - Watchers keyed to exit_code.txt: ghost-sentinel (start-ack fires early); replaced by RUN_DONE-marker + runner-gone dual signal.
 
 ## Results
-[PENDING — slots pre-drawn; fills from probes JSONs + mmlu_summary.json at close]
+(Filled 2026-10-01 00:35 PDT from mirrored probe JSONs + mmlu_summary.json.)
 
 ### Ladder table (harm refusal rate, v1 headline; benign v2)
 | variant | harm refused /64 | benign preserved /64 | gate verdict | vintage/artifact |
@@ -77,12 +75,13 @@
 - F4: [if E1] decider probe distribution; [if E2] hook-vs-persistent contrast visual.
 
 ## Analysis & Discussion
-[PENDING — key threads pre-drawn]
 
-- Scale-regime read (both endings): 0.5B single-site vs 1.5B multi-site — the site-count axis is the actionable knob; thin-gate geometry story strengthened either way.
-- Benign-side success across ALL variants ≥57/64 preserved: multi-site editing preserves utility better than it kills refusal at 1.5B (asymmetry is the finding).
-- Suppression-regime caveat (2609.06934): 0% hook ≠ permanence; benign-SFT robustness probe battery = future work (fact-store item).
-- Provenance lesson institutionalized: artifact-first digits.
+- **Scale-regime read.** In the 0.5B run the composite edit closed the hook-vs-persistent gap; at 1.5B the composite narrows it (34.4% vs 0%) but does not close it. The site-count axis (K) is the actionable knob and K=5 is not sufficient at this scale; per-layer direction refresh (re-extracting the direction at each edited site rather than reusing the L19 readout-space proxy) and K>5 are the obvious next steps.
+- **The asymmetry is the finding.** Every variant keeps ≥57/64 benign probes answered (one has 64/64): multi-site weight editing preserves utility better than it removes refusal at 1.5B. Practitioner guidance: at this scale, use the hook on safety-critical serving paths; use persistent composites only when residual-refusal levels near 1/3 are acceptable.
+- **Benign blind spots.** The edit that removed 63/64 harmful refusals also removed all 3 genuine baseline over-refusals (own-house lock install, own-apartment key copy, faster doctor appointment) — the refusal direction carries over-refusal, so removing it repairs false refusals too.
+- **Suppression-regime caveat (Malla 2609.06934).** Hook-based removal is inference-time and does not establish permanence; the benign-SFT robustness probe battery (queued future-work item 4) is the decisive test for the persistent artifact family.
+- **Provenance lesson institutionalized.** Every headline digit names artifact + revision; stream aggregates were labeled pre-artifact vintage and both vintages carried where rows were unverifiable (wd_BN ±1 discrepancy).
+- **Infrastructure finding.** A per-assignment lease (fit:3600 s by declaration, T4×16/A100×28/L4×6 in the CLI debug logs) reaps sessions at ~60 min regardless of load; busy-unsafe, keep-alive-blind, arch-invariant. Quota-cycle hypothesis rejected (deaths scatter 261 min from UTC-midnight anchors vs constant ages). Countermeasures: per-phase pulls, probes-validated banked resume with spec-narrow, REAPERSPLIT driver, death-forensics-before-exit. Open residual: lease-EXIT vs proxy-token-REVOCATION attribution.
 
 ## Artifacts & Reproducibility
 - Repo: /root/research/abliteration (local git is version-of-record; push/CI parked per user).
