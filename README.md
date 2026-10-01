@@ -60,30 +60,18 @@ the opposite:
 
 ## How a run flows
 
-```
- spec.yaml ──▶ capture activations (harmful vs harmless)
-                     │
-                     ▼
-            score every layer × position for "refusal direction"
-            coherence ──▶ pick the strongest direction
-                     │
-                     ▼
-        ┌──── probe baseline ──── probe hook-ablated ────┐
-        │                        (runtime, stage A)      │
-        ▼                                               ▼
-   ladder of persistent weight edits                    │
-   (wd_B / wd_BN / wd_ML / wd_ML_BN …)                  │
-   each: edit → save → reload → verify → probe          │
-        │                                               │
-        ▼                                               ▼
-   selection gate (benign floor, zero degenerates) ─────┘
-                     │
-                     ▼
-        MMLU guardrail: knowledge loss ≤ 3pp, else STOP
-                     │
-                     ▼
-          publish gates → Hugging Face push + model card
-```
+| stage | what happens | GPU |
+|---|---|---|
+| **spec** (YAML) | pinned model + probe sets + gate rules | no |
+| **capture** | activations recorded on harmful vs harmless prompts | yes |
+| **direction scan** | every layer × position scored; the strongest coherent direction is picked | yes |
+| **stage A probes** | baseline vs hook-ablated behavior compared (runtime-only, nothing saved) | yes |
+| **stage B ladder** | persistent weight-edits (`wd_B / wd_BN / wd_ML / wd_ML_BN …`), each: edit → save → reload → verify → probe | yes |
+| **selection gate** | benign-preservation floor met, zero degenerates | — |
+| **MMLU guardrail** | knowledge loss ≤ 3pp, else STOP | yes |
+| **publish** | all gates verified → Hugging Face push + model card | no |
+
+Full stage-by-stage detail lives in `plan` (`uv run --no-sync abliterate plan --spec <spec>` prints it for any spec, zero side effects).
 
 ## Quickstart
 

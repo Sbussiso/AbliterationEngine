@@ -23,18 +23,15 @@ go in order.
 
 ```text
    a chat model refuses sometimes          "I'm sorry, I can't..."
-                    │
-                    ▼
-   that "no" habit lives at ONE address     (a direction in the model's
-                                            internal number-stream)
-                    │
-                    ▼
-   delete that direction → the model        the surgery ("abliteration")
-   keeps ALL its knowledge & skills
-                    │
-                    ▼
-   ...but now answers. guardrails verify    (behavior checks + a knowledge
-   it didn't get dumber or broken           exam must still pass)
+
+   that "no" habit lives at ONE address — a direction in the model's
+   internal number-stream
+
+   delete that direction → the model keeps ALL its knowledge & skills
+   (this is the surgery, "abliteration")
+
+   ...but now answers. Guardrails verify it didn't get dumber or broken
+   (behavior checks + a knowledge exam must still pass)
 ```
 
 The tool in this repo does all of the above **measurably**: it grades

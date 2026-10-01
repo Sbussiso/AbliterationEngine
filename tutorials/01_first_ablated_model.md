@@ -6,20 +6,13 @@ if you can open a terminal and copy-paste, you can do this.
 Time: about 40 minutes (most of it waiting). Cost: a free Google Colab
 GPU session.
 
-```
-┌────────────────────────────────────────────────────────────┐
-│  What you will do                                          │
-│                                                            │
-│   1. Download a tool named "abliteration_engine"       5m  │
-│   2. Ask it what it plans to do (it prints a plan)     2m  │
-│   3. Pack everything into one upload file (a bundle)   2m  │
-│   4. Open free Google Colab, upload, press one button 10m  │
-│      → the AI that once said "I'm sorry, I can't"          │
-│        now answers the question                            │
-│   5. Check the result against the record                5m │
-│   6. (Later, if you want it) publish to Hugging Face    5m │
-└────────────────────────────────────────────────────────────┘
-```
+1. **Download** a tool named `abliteration_engine` — 5 min
+2. **Ask it what it plans to do** (it prints a plan) — 2 min
+3. **Pack everything into one upload file** (a bundle) — 2 min
+4. **Open free Google Colab, upload, press one button** — 10 min
+   → the AI that once said "I'm sorry, I can't" now answers the question
+5. **Check the result against the record** — 5 min
+6. **(Later, if you want it) publish to Hugging Face** — 5 min
 
 ---
 
