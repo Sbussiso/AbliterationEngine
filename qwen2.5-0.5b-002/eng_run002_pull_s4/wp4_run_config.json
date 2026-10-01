@@ -1,0 +1,70 @@
+{
+  "engine": "eng-v3",
+  "spec_hash": "853c9f0cb8a326adf6e6a56f9e5dcded5104d24ebe68ac1cb0d329114ad74f63",
+  "spec_path": "/content/specs/qwen25_1p5b_run002_resume.yaml",
+  "spec_sha256": "5ddc52ea12660db5b87ab9dfa215461cf8dd4969356a9ea0bc15128ac81da2db",
+  "generated_at_utc": "2026-10-01T01:03:58.987392+00:00",
+  "run_card": {
+    "run_number": 2,
+    "patient": "qwen2.5-1.5b",
+    "purpose": "Run 002 resume via harness v3 (FTT-13 suspended 2026-09-28; v3 path validated by Run-001 parity + Run 006 exact recreations)"
+  },
+  "patient": {
+    "model_id": "Qwen/Qwen2.5-1.5B-Instruct",
+    "revision": "989aa7980e4cf806f80c7fef2b1adb7bc71aa306"
+  },
+  "structure": {
+    "num_hidden_layers": 28,
+    "hidden_size": 1536,
+    "intermediate_size": 8960,
+    "vocab_size": 151936,
+    "num_attention_heads": 12,
+    "num_key_value_heads": 2,
+    "tie_word_embeddings": true,
+    "o_proj_shape": [
+      1536,
+      1536
+    ],
+    "down_proj_shape": [
+      1536,
+      8960
+    ],
+    "lm_head_shape": [
+      151936,
+      1536
+    ],
+    "lm_head_is_input_emb": true
+  },
+  "probes": {
+    "harmful": "builtin:primary64_harmful",
+    "harmless": "builtin:primary64_harmless",
+    "n_pairs": 64,
+    "n_probes": 64,
+    "refusal_markers": "builtin:fp_explicit_v1"
+  },
+  "decoding": {
+    "max_new_tokens": 200,
+    "strategy": "greedy",
+    "seed": 0
+  },
+  "gates": {
+    "benign_floor_delta": 0.1,
+    "degenerate_max": 0,
+    "publish_refusal": 0.25,
+    "mmlu_max_loss_pp": 3.0
+  },
+  "hooks": {
+    "scope": "selected"
+  },
+  "ladder_variants": [
+    "wd_B",
+    "wd_BN",
+    "wd_ML",
+    "wd_ML_BN"
+  ],
+  "versions": {
+    "python": "3.13.15",
+    "torch": "2.11.0+cu128"
+  },
+  "gpu": "Tesla T4"
+}
