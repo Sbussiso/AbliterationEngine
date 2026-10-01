@@ -1,0 +1,188 @@
+{
+  "best": {
+    "decoder_layer": 19,
+    "hidden_states_index": 20,
+    "direction_norm": 31.6745,
+    "coherence": 0.8218
+  },
+  "table": [
+    {
+      "decoder_layer": 2,
+      "hidden_states_index": 3,
+      "direction_norm": 0.4355,
+      "coherence": 0.1537
+    },
+    {
+      "decoder_layer": 3,
+      "hidden_states_index": 4,
+      "direction_norm": 0.8087,
+      "coherence": 0.1627
+    },
+    {
+      "decoder_layer": 4,
+      "hidden_states_index": 5,
+      "direction_norm": 0.8681,
+      "coherence": 0.1614
+    },
+    {
+      "decoder_layer": 5,
+      "hidden_states_index": 6,
+      "direction_norm": 0.8697,
+      "coherence": 0.1596
+    },
+    {
+      "decoder_layer": 6,
+      "hidden_states_index": 7,
+      "direction_norm": 0.9438,
+      "coherence": 0.1803
+    },
+    {
+      "decoder_layer": 7,
+      "hidden_states_index": 8,
+      "direction_norm": 1.1166,
+      "coherence": 0.1865
+    },
+    {
+      "decoder_layer": 8,
+      "hidden_states_index": 9,
+      "direction_norm": 1.1694,
+      "coherence": 0.1909
+    },
+    {
+      "decoder_layer": 9,
+      "hidden_states_index": 10,
+      "direction_norm": 1.2921,
+      "coherence": 0.1916
+    },
+    {
+      "decoder_layer": 10,
+      "hidden_states_index": 11,
+      "direction_norm": 2.1701,
+      "coherence": 0.2579
+    },
+    {
+      "decoder_layer": 11,
+      "hidden_states_index": 12,
+      "direction_norm": 2.9648,
+      "coherence": 0.352
+    },
+    {
+      "decoder_layer": 12,
+      "hidden_states_index": 13,
+      "direction_norm": 3.3437,
+      "coherence": 0.3884
+    },
+    {
+      "decoder_layer": 13,
+      "hidden_states_index": 14,
+      "direction_norm": 7.1452,
+      "coherence": 0.5752
+    },
+    {
+      "decoder_layer": 14,
+      "hidden_states_index": 15,
+      "direction_norm": 8.0817,
+      "coherence": 0.628
+    },
+    {
+      "decoder_layer": 15,
+      "hidden_states_index": 16,
+      "direction_norm": 12.1184,
+      "coherence": 0.7201
+    },
+    {
+      "decoder_layer": 16,
+      "hidden_states_index": 17,
+      "direction_norm": 19.7011,
+      "coherence": 0.792
+    },
+    {
+      "decoder_layer": 17,
+      "hidden_states_index": 18,
+      "direction_norm": 22.1868,
+      "coherence": 0.7899
+    },
+    {
+      "decoder_layer": 18,
+      "hidden_states_index": 19,
+      "direction_norm": 27.6821,
+      "coherence": 0.8185
+    },
+    {
+      "decoder_layer": 19,
+      "hidden_states_index": 20,
+      "direction_norm": 31.6745,
+      "coherence": 0.8218
+    },
+    {
+      "decoder_layer": 20,
+      "hidden_states_index": 21,
+      "direction_norm": 35.6489,
+      "coherence": 0.7664
+    },
+    {
+      "decoder_layer": 21,
+      "hidden_states_index": 22,
+      "direction_norm": 45.1319,
+      "coherence": 0.7392
+    },
+    {
+      "decoder_layer": 22,
+      "hidden_states_index": 23,
+      "direction_norm": 57.0867,
+      "coherence": 0.7608
+    },
+    {
+      "decoder_layer": 23,
+      "hidden_states_index": 24,
+      "direction_norm": 64.6292,
+      "coherence": 0.7369
+    },
+    {
+      "decoder_layer": 24,
+      "hidden_states_index": 25,
+      "direction_norm": 73.6375,
+      "coherence": 0.704
+    },
+    {
+      "decoder_layer": 25,
+      "hidden_states_index": 26,
+      "direction_norm": 81.4673,
+      "coherence": 0.6976
+    },
+    {
+      "decoder_layer": 26,
+      "hidden_states_index": 27,
+      "direction_norm": 87.5322,
+      "coherence": 0.6592
+    }
+  ],
+  "n_pairs": 64,
+  "final_layer": 27,
+  "structure": {
+    "num_hidden_layers": 28,
+    "hidden_size": 1536,
+    "intermediate_size": 8960,
+    "vocab_size": 151936,
+    "num_attention_heads": 12,
+    "num_key_value_heads": 2,
+    "tie_word_embeddings": true,
+    "o_proj_shape": [
+      1536,
+      1536
+    ],
+    "down_proj_shape": [
+      1536,
+      8960
+    ],
+    "lm_head_shape": [
+      151936,
+      1536
+    ],
+    "lm_head_is_input_emb": true
+  },
+  "readout_space": {
+    "coherence": 0.6239171624183655,
+    "direction_norm": 57.83742141723633
+  }
+}
