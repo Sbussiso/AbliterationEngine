@@ -19,6 +19,9 @@ gpu = [
 dev = [
     "pytest>=8.0",
     "ruff>=0.6",
+    # publish tests mock huggingface_hub.HfApi; CI's frozen sync has no
+    # system-site leak, so the mock target must be a real dev dep
+    "huggingface_hub>=0.30",
 ]
 
 [project.scripts]

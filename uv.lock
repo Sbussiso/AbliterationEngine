@@ -18,6 +18,7 @@ dependencies = [
 
 [package.optional-dependencies]
 dev = [
+    { name = "huggingface-hub" },
     { name = "pytest" },
     { name = "ruff" },
 ]
@@ -28,6 +29,7 @@ gpu = [
 
 [package.metadata]
 requires-dist = [
+    { name = "huggingface-hub", marker = "extra == 'dev'", specifier = ">=0.30" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pyyaml", specifier = ">=6.0" },
