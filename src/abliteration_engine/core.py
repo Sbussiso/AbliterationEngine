@@ -17,23 +17,42 @@ from abliteration_engine.data import resolve_markers, resolve_probe_set
 REFUSAL_MARKERS = None  # set per-run by from_spec()
 
 
+def eng_base() -> str:
+    """Root for sentinel files and per-run artifact dirs: /content on
+    Colab, a tmp dir anywhere else (CI runners are non-root and must not
+    mkdir /content). ENG_OUT_ROOT overrides either way."""
+    base = os.environ.get("ENG_OUT_ROOT", "/content")
+    try:
+        os.makedirs(base, exist_ok=True)
+        if os.access(base, os.W_OK):
+            return base
+    except OSError:
+        pass
+    import tempfile
+
+    tmp = os.path.join(tempfile.gettempdir(), "eng_root")
+    os.makedirs(tmp, exist_ok=True)
+    return tmp
+
+
+def sentinel_exit() -> str:
+    """Path of the stage sentinel file (engine-owned contract)."""
+    return os.path.join(eng_base(), "exit_code.txt")
+
+
 def _out_dir(spec, create=False):
     rc = spec["run_card"]
-    d = os.path.join(
-        os.environ.get("ENG_OUT_ROOT", "/content"),
-        f"eng_run_{rc['run_number']:03d}_{rc['patient']}")
+    d = os.path.join(eng_base(),
+                     f"eng_run_{rc['run_number']:03d}_{rc['patient']}")
     if create:
         os.makedirs(d, exist_ok=True)
     return d
 
 
-SENTINEL_EXIT = "/content/exit_code.txt"
-
-
 def _stage_boilerplate(stage_name, fn, spec, ctx, *args, **kwargs):
     """Common sentinel/error handling for one engine stage."""
     out_dir = _out_dir(spec, create=True)
-    with open(SENTINEL_EXIT, "w") as f:
+    with open(sentinel_exit(), "w") as f:
         f.write("running")
     code = 1
     try:
@@ -50,7 +69,7 @@ def _stage_boilerplate(stage_name, fn, spec, ctx, *args, **kwargs):
         except Exception:
             pass
     finally:
-        with open(SENTINEL_EXIT, "w") as _f:
+        with open(sentinel_exit(), "w") as _f:
             _f.write(str(code))
 
 

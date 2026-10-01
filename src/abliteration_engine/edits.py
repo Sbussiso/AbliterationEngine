@@ -235,7 +235,7 @@ def run_ladder(spec, ctx):
           f"baseline_refusal={base_sum['refusal_rate']} "
           f"benign={base_pres}", flush=True)
 
-    VARBASE = os.environ.get("ENG_VARBASE", "/content")
+    VARBASE = os.environ.get("ENG_VARBASE") or core.eng_base()
     VAR_DIRS = {v: f"{VARBASE}/{v}" for v in variants}
 
     def edit_wd_B(m):

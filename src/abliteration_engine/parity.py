@@ -10,6 +10,8 @@ import os
 
 import numpy as np
 
+from abliteration_engine import core
+
 
 def _cos_l1(a, b):
     a = np.asarray(a, dtype=np.float64).ravel()
@@ -37,7 +39,7 @@ def parity_check(spec, baseline_dir, run_dir=None, cos_tol=0.999,
     """Run-dir defaults to the spec's expected out dir. Returns a result
     dict; parity_ok False on ANY mismatch beyond tolerance."""
     run_dir = run_dir or os.path.join(
-        os.environ.get("ENG_OUT_ROOT", "/content"),
+        core.eng_base(),
         f"eng_run_{spec['run_card']['run_number']:03d}_"
         f"{spec['run_card']['patient']}")
     checks = []

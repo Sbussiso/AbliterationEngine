@@ -6,7 +6,7 @@ base-variant < gates.mmlu_max_loss_pp else STOP-and-report. Variant =
 selection.json selected_variant_dir (ladder runs) — guarded-off for
 hook-only specs.
 
-Colab-side only; sentinel /content/mmlu_exit_code.txt + final line
+Colab-side only; sentinel <eng_base>/mmlu_exit_code.txt + final line
 MMLU_DONE {summary} in the log (v2 contract preserved for the poll loop).
 """
 import glob
@@ -42,15 +42,15 @@ def _parse_lm_eval(out_dir):
 
 def mmlu_phase(spec_path):
     """`abliterate mmlu` — base vs variant, writes mmlu_summary.json to the
-    run out dir; sentinel /content/mmlu_exit_code.txt."""
+    run out dir; sentinel <eng_base>/mmlu_exit_code.txt."""
     from . import core
     from .spec import load_spec
 
     spec = load_spec(spec_path)
     out_dir = core._out_dir(spec, create=True)
     log = os.path.join(out_dir, "mmlu_log.txt")
-    exit_f = os.environ.get("ENG_MMLU_EXIT_FILE",
-                            "/content/mmlu_exit_code.txt")
+    exit_f = os.environ.get("ENG_MMLU_EXIT_FILE") \
+        or os.path.join(core.eng_base(), "mmlu_exit_code.txt")
 
     def logw(m):
         with open(log, "a") as f:

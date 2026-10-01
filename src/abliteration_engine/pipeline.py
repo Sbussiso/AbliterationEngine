@@ -58,7 +58,7 @@ def _run_phase(fn, spec, exit_file, done_key):
 def run_pipeline(spec):
     """`abliterate run` — stage A, then stage B WHEN the spec has ladder
     variants. Hook-only specs stop after stage A (stage-5 gating)."""
-    exit_file = os.environ.get("ENG_EXIT_FILE", "/content/exit_code.txt")
+    exit_file = core.sentinel_exit()
     rc_a = _run_phase(core.from_spec, spec, exit_file, "RUN_DONE")
     if rc_a != 0:
         return rc_a
@@ -78,10 +78,10 @@ def ladder_phase(spec_path):
         print("REFUSING: ladder phase selected but spec has no variants "
               "(hook-only spec)", flush=True)
         _write_sentinel_exit(
-            os.environ.get("ENG_EXIT_FILE", "/content/exit_code.txt"), 2)
+            core.sentinel_exit(), 2)
         return 2
     from . import edits  # torch-bound module; deferred for CPU CLI paths
-    exit_file = os.environ.get("ENG_EXIT_FILE", "/content/exit_code.txt")
+    exit_file = core.sentinel_exit()
     return _run_phase(lambda s: edits.run_ladder(s, {"out_dir": core._out_dir(s),
                                                      "model": None}),
                       spec, exit_file, "LADDER_DONE")
