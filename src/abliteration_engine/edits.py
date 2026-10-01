@@ -209,6 +209,50 @@ def select_variant(candidates, base_preserved, publish_refusal,
     return selected, eligible
 
 
+def _banked_variant_summary(spec, name):
+    """Resume short-circuit (2026-09-30, 3x Colab registry drops): if a
+    COMPLETE probes_<name>.json from a prior session exists in the run
+    out_dir, reuse it instead of re-editing + re-probing. Complete = both
+    sides have exactly n_probes rows, every row has the grader fields, and
+    on-disk variant dir exists with a loadable config. Returns summary or
+    None (never raises -> corrupt files re-run normally)."""
+    import json as _json
+    import os as _os
+    out_dir = core._out_dir(spec)
+    p = _os.path.join(out_dir, f"probes_{name}.json")
+    if not _os.path.exists(p):
+        return None
+    n_probes = spec["probe_sets"]["n_probes"]
+    try:
+        d = _json.load(open(p))
+        r_h, r_b = d["harmful"], d["harmless"]
+        if len(r_h) != n_probes or len(r_b) != n_probes:
+            return None
+        if not all(x.get("refused") is not None and x.get("output")
+                   for x in r_h + r_b):
+            return None
+        # NOTE: variant dir on disk intentionally NOT required — probes-only
+        # banked resume is safe because publish/MMLU refuse loudly if the
+        # SELECTED variant's dir is absent (realistic winner at 1.5B is
+        # wd_ML, which is always freshly built on the resuming session).
+        base = _json.load(open(_os.path.join(out_dir, "probes_baseline.json")))
+        base_sum = core.summarize(base["harmful"], base["harmless"])
+        s = core.summarize(r_h, r_b)
+        s["banked_resume"] = True
+        s["edit_info"] = {"banked_resume": "probes restored from prior "
+                          "session; edit+save+verify skipped"}
+        s["on_disk_verify"] = {"banked_resume": "variant dir from disk"
+                               if _os.path.isdir(_os.path.join(
+                                   _os.environ.get("ENG_VARBASE")
+                                   or core.eng_base(), name))
+                               else "PROBES_ONLY (variant dir absent)"}
+        s["tie_flag_on_disk"] = None
+        return s
+    except Exception as e:  # corrupt/incomplete -> re-run normally
+        print(f"      banked_resume skip {name}: {e}", flush=True)
+        return None
+
+
 def run_ladder(spec, ctx):
     """Stage B: the ladder from spec.ladder.variants over v2 stage-A
     artifacts. Returns the LADDER_DONE payload dict."""
@@ -305,6 +349,15 @@ def run_ladder(spec, ctx):
         if name == "wd_ML_BN":
             continue  # conditional, after the others
         print(f"[{step}/6] {name}", flush=True)
+        banked = _banked_variant_summary(spec, name)
+        if banked is not None:
+            print(f"      {name}: BANKED RESUME (complete prior-session "
+                  f"probes reused; refusal={banked['refusal_rate']} "
+                  f"benign={banked['benign_preserved']} "
+                  f"degenerate={banked['degenerate_total']})", flush=True)
+            summ[name] = banked
+            step += 1
+            continue
         summ[name] = run_variant(name, edit_fns[name], VAR_DIRS[name],
                                  expect_tied[name], verify_fns[name], spec,
                                  ctx["model"])
@@ -355,6 +408,11 @@ def run_ladder(spec, ctx):
     json.dump({"selected": selected["variant"],
                "gate": "passed" if selected["passes_gate"] else "failed",
                "selected_variant_dir": sel_dir,
+               "selected_variant_banked_resume":
+                   bool(selected["variant"] in summ
+                        and summ[selected["variant"]].get("banked_resume")),
+               "banked_resume_variants":
+                   [v for v, s in summ.items() if s.get("banked_resume")],
                "publish_eligible_probe_gate": eligible,
                "publish_refusal_threshold":
                    spec["gates"]["publish_refusal"],

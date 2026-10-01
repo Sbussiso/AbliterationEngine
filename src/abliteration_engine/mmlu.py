@@ -80,6 +80,13 @@ def mmlu_phase(spec_path):
     out_var = os.path.join(out_dir, "mmlu_results", "variant")
 
     def run_lm_eval(tag, model_args, odir):
+        # banked-MMLU resume: a prior session may have already banked this
+        # side; reuse its results_*.json instead of re-burning 40+ min T4.
+        prior = _parse_lm_eval(odir)
+        if prior and prior["acc"] is not None:
+            logw(f"=== {tag}: BANKED RESUME (prior-session results reused, "
+                 f"acc={prior['acc']:.4f})")
+            return 0
         cmd = [sys.executable, "-m", "lm_eval", "--model", "hf",
                "--model_args", model_args, "--tasks", "mmlu",
                "--num_fewshot", "0", "--batch_size", "auto",
