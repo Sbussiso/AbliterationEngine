@@ -1,11 +1,12 @@
 # Tutorial 5 — Publish your model (all gates, then upload)
 
 **Level: advanced beginner.** You made a variant that passed its gates
-(Tutorial 1 steps 4–5). Now: verify everything one last time on your
+(Tutorial 1 Steps 5–5b). Now: verify everything one last time on your
 own machine, generate the model card *mechanically*, and upload to
 Hugging Face.
 
-Time: ~10 minutes on CPU. GPU: not needed — publishing runs locally.
+Time: ~10 minutes on CPU. GPU: not needed — publishing runs on a
+laptop, or in the same Colab session as the rest of the run.
 
 ---
 
@@ -31,7 +32,11 @@ Nothing ships by accident. That's the whole philosophy of this tool:
 
 ---
 
-## Step 1 — The command (after pulling your artifacts home)
+## Step 1 — The command (after pulling your artifacts somewhere safe)
+
+Publishing works anywhere Python runs — your laptop, or the same Colab
+session that did the run (the results are already on its disk). On a
+laptop with `uv`:
 
 ```bash
 uv run --no-sync abliterate publish \
@@ -41,10 +46,24 @@ uv run --no-sync abliterate publish \
     --i-know-this-publishes
 ```
 
+Or, in the Colab session you already set up (drop `uv run --no-sync`,
+the tool is already installed there):
+
+```python
+!abliterate publish \
+    --spec specs/my_first_run.yaml \
+    --variant-dir <the-winner's-model-folder> \
+    --mmlu <results-folder>/mmlu_summary.json \
+    --i-know-this-publishes
+```
+
+You'll need your Hugging Face token in the session either way
+(`huggingface-cli login` from a terminal — or `%pip install -q huggingface_hub && !huggingface-cli login` in Colab).
+
 - `--variant-dir`: the folder the ladder saved the winning variant to
-  (the on-disk model files — they must be on *your* machine, not
-  still on Colab).
-- `--mmlu`: the exam summary from Tutorial 1 step 5.
+  (the on-disk model files — wherever you're running this, they must
+  be on *that* machine's disk).
+- `--mmlu`: the exam summary from Tutorial 1 Step 5b.
 
 If any lock fails: **nothing uploads.** The error names the exact
 gate. Fix the run (or the variant), don't the gate.
@@ -91,9 +110,10 @@ verified to say what you meant.
 
 ## Step 4 — The human checklist (5 minutes, worth it)
 
-- [ ] Gates passed on the **verified** artifacts (Tutorial 1 step 6's
+- [ ] Gates passed on the **verified** artifacts (Tutorial 1 Step 6's
       parity check) — not on hopes.
-- [ ] Winner's weights on local disk, hash-checked.
+- [ ] Winner's weights on disk wherever you're publishing from,
+      hash-checked.
 - [ ] You understand what you're about to host: **an abliterated model
       answers harmful requests**. That's the research point; the card
       says it; you should too — in how you share it, whom you share it

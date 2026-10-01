@@ -11,7 +11,8 @@ Time: 15 minutes with a file open. GPU: no.
 
 ## Open one and look around
 
-Open `probes_baseline.json` (from Tutorial 1's results). Inside:
+Open `probes_baseline.json` (from Tutorial 1's results — the
+`eng_run_001_qwen2.5-0.5b` folder you downloaded). Inside:
 
 ```json
 {

@@ -1,9 +1,10 @@
 # Tutorials — learn to uncensor an open-weight model, step by step
 
-**Written for people without ML background.** If you can open a terminal
-and copy-paste commands, these guides will take you from zero to a
-working ablated model. Every command has been run literally as shown,
-and every number comes from result files stored in this repo.
+**Written for people without ML background.** If you can copy-paste
+commands, these guides will take you from zero to a working ablated
+model — everything runs in your browser on free Google Colab GPUs.
+Every command has been run literally as shown, and every number comes
+from result files stored in this repo.
 
 | # | Tutorial | What you'll do | Time | GPU? |
 |---|---|---|---|---|
@@ -13,9 +14,9 @@ and every number comes from result files stored in this repo.
 | 4 | [Reading the report cards](04_probe_files_and_scoring.md) | open result files, grade answers honestly | 15 min | no |
 | 5 | [Publish your model](05_publishing.md) | final checks + upload to Hugging Face | 10 min | no |
 
-**Never used a terminal?** Tutorial 1 starts with the two free installs
-you need and defines every abbreviation it uses. Start there and just
-go in order.
+**Never used a terminal?** You don't need one: Tutorial 1 happens in
+your browser on Google Colab, and it defines every abbreviation it
+uses. Start there and just go in order.
 
 ---
 

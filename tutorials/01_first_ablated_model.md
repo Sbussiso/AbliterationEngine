@@ -1,18 +1,20 @@
 # Tutorial 1 — Make your first uncensored model (complete walkthrough)
 
 **Level: total beginner.** You don't need machine-learning experience —
-if you can open a terminal and copy-paste, you can do this.
+if you can copy-paste, you can do this, and everything happens in your
+browser on Google's free GPUs.
 
 Time: about 40 minutes (most of it waiting). Cost: a free Google Colab
-GPU session.
+GPU session. No installation, no terminal, no local Python.
 
-1. **Download** a tool named `abliteration_engine` — 5 min
-2. **Ask it what it plans to do** (it prints a plan) — 2 min
-3. **Pack everything into one upload file** (a bundle) — 2 min
-4. **Open free Google Colab, upload, press one button** — 10 min
+1. **Open Colab** (Python is already installed there) — 2 min
+2. **Download the repo** — 1 min
+3. **Install the tool** — 2 min
+4. **Ask it what it plans to do** (it prints a plan) — 2 min
+5. **Press one button** — 10 min
    → the AI that once said "I'm sorry, I can't" now answers the question
-5. **Check the result against the record** — 5 min
-6. **(Later, if you want it) publish to Hugging Face** — 5 min
+6. **Check the result against the record** — 5 min
+7. **(Later, if you want it) publish to Hugging Face** — 5 min
 
 ---
 
@@ -39,57 +41,48 @@ accepts. Nothing here is invented for illustration.
 
 ---
 
-## Before you start — what to install
+## Step 1 — Open Colab (2 minutes)
 
-You need two free things:
+Go to [colab.research.google.com](https://colab.research.google.com) (any
+Google account works). Click **New notebook**. Colab's sessions already
+come with Python, the ML stack, and a free GPU — nothing to install on
+your machine.
 
-**1. Python 3.11 or newer** (`python3 --version` to check).
-**2. `uv` — a Python tool manager.** One command:
+Turn the GPU on before you do anything else:
+**Runtime → Change runtime type → T4 GPU → Save.**
 
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
+## Step 2 — Download the repo (1 minute)
+
+In a fresh code cell:
+
+```python
+!git clone https://github.com/Sbussiso/abliteration.git
+%cd abliteration
 ```
 
-(Windows: `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`. On Mac the `curl` line above works in Terminal. On Linux too.)
+## Step 3 — Install the tool (2 minutes)
 
-That's it. The tool itself installs its own dependencies next.
-
----
-
-## Step 1 — Get the tool (5 minutes)
-
-```bash
-git clone https://github.com/Sbussiso/abliteration.git
-cd abliteration
-uv sync --extra dev
+```python
+!pip install -q . && abliterate --help
 ```
 
-That last line downloads everything the tool needs. `--extra dev` means
-"the CPU-only starter kit" — safe on any laptop, no GPU needed yet.
+`pip install .` reads the repo, builds the `abliterate` command, and
+installs its few dependencies. `abliterate --help` greets you with the
+tool's available "verbs": plan, validate, run, ladder, mmlu, publish,
+parity, bundle. Verbs are just the things the tool can do. Think of
+this like a workshop: `plan` consults the blueprint, `run` does the
+measuring on the GPU, `ladder` does the surgery, `mmlu` gives the
+patient an exam, `publish` ships the result, `parity` double-checks
+the work.
 
-When it finishes, say hello to the tool:
-
-```bash
-uv run --no-sync abliterate --help
-```
-
-You should see the tool's available "verbs" (plan, validate, run, ladder,
-mmlu, publish, parity, bundle). Verbs are just the things the tool can do.
-Think of this like a workshop: `plan` consults the blueprint, `run` does
-the measuring on the GPU, `ladder` does the surgery, `mmlu` gives the
-patient an exam, `publish` ships the result, `bundle` packs up anything
-to move, `parity` double-checks the work.
-
----
-
-## Step 2 — Ask the tool what it plans to do (2 minutes)
+## Step 4 — Ask the tool what it plans to do (2 minutes)
 
 A "spec" is a small settings file that describes one mission: which
 model, which test questions, how strict the safety checks are. The repo
 ships with real ones. Look at what a mission looks like:
 
-```bash
-uv run --no-sync abliterate plan --spec specs/run001_parity.yaml
+```python
+!abliterate plan --spec specs/run001_parity.yaml
 ```
 
 You'll see something like:
@@ -105,7 +98,7 @@ stage plan:
   4  probe       baseline + hook-ablated ...
   5  ladder      variants ['wd_B', 'wd_BN', ...]
   5.5 mmlu       base vs variant, delta <= 3.0pp gate
-  6  publish      sbussiso/... (HITL before_publish=True)
+  6  publish     sbussiso/... (HITL before_publish=True)
 ```
 
 Plain-English translation of that plan:
@@ -124,47 +117,21 @@ Plain-English translation of that plan:
 
 > Nothing here is loaded or run yet. `plan` is completely safe.
 
----
+## Step 5 — The GPU session (10 minutes of watching)
 
-## Step 3 — Pack the mission into one file (2 minutes)
-
-```bash
-uv run --no-sync abliterate bundle --spec specs/run001_parity.yaml --out-dir bundles
-```
-
-Done? You have one file like
-`bundles/eng_run_001_...tar.gz` — it contains the whole tool, locked to
-the exact tested versions, plus the mission file. This single file is
-what you'll upload to Google Colab, so no setup is needed there.
-
-Why not just run the tool on Colab directly? Because Colab's Python is
-slightly different from yours; the bundle freezes the exact tested
-setup so the numbers come out identical.
-
----
-
-## Step 4 — The GPU session (10 minutes of clicking)
-
-1. Go to [colab.research.google.com](https://colab.research.google.com)
-   (free Google account; pick a **T4 GPU** runtime: Runtime → Change
-   runtime type → T4 GPU).
-2. Upload the bundle: the little folder icon on the left → upload arrow →
-   choose the `.tar.gz`.
-3. New code cell, type exactly:
+One cell:
 
 ```python
-!tar xzf eng_run_001*.tar.gz && cd eng_run_001* && nohup bash runner.sh > phase_out.log 2>&1 &
+!abliterate run --spec specs/run001_parity.yaml \
+  --i-know-this-spends-quota
 ```
 
-4. Every minute or so, check how it's doing:
-
-```python
-!cd eng_run_001* && tail -5 phase_out.log
-```
+(The flag is the tool's built-in "yes, spend my GPU minutes" — it makes
+sure nothing expensive ever runs by accident.)
 
 You'll watch it: download the model → capture chatter (a few minutes)
-→ find the direction → ask test questions. When you see
-`ENGRUN_DONE` and `exit_code.txt` says `0`, the stage is complete.
+→ find the direction → ask test questions. When you see `ENGRUN_DONE`,
+stage A is complete.
 
 **What happened in there?** The tool read the model's internal
 activations on each of 24 layers for 128 questions, found the one
@@ -176,20 +143,18 @@ direction off = 0%.
 > ⚠️ Free Colab sessions get reclaimed after about an hour. Don't
 > panic: Tutorial 3 shows how to lose nothing and resume. The tool was
 > literally built for this — three real session kills in one day cost
-> nothing here.
+> nothing here. In practice: pull your results folder down
+> (next step) after each stage, and start a fresh session when Google
+> ends yours.
 
----
-
-## Step 5 — Make your model's surgery permanent (10 minutes)
+## Step 5b — Make your model's surgery permanent (10 minutes)
 
 The hook is temporary. To make a model file you can keep:
 
-```bash
-!cd eng_run_001* && nohup bash runner.sh > ladder_out.log 2>&1 &   # with PHASE=ladder
+```python
+!abliterate ladder --spec specs/run001_parity.yaml \
+  --i-know-this-spends-quota
 ```
-
-(the runner line for step 4 works, just add `PHASE=ladder` after
-`runner.sh`).
 
 `ladder` means: the tool tries a few different permanent surgeries,
 makes a fresh copy of the model for each, re-loads them to be sure the
@@ -200,8 +165,9 @@ becomes a file like `probes_wd_B.json`, and a judge within the tool
 
 Then, the exam:
 
-```bash
-!cd eng_run_001* && PHASE=mmlu bash runner.sh
+```python
+!abliterate mmlu --spec specs/run001_parity.yaml \
+  --i-know-this-spends-quota
 ```
 
 This runs the MMLU knowledge test (57 subjects: history, law, medicine,
@@ -210,23 +176,23 @@ model got more than 3 percentage points dumber — the run halts and
 tells you. Our published models lost essentially nothing (the 7B one:
 71.77% → 71.77%, i.e. unchanged).
 
----
+## Step 6 — Check your results against the record (5 minutes)
 
-## Step 6 — Download your results and check them (5 minutes)
+The repo carries the verified result files of earlier runs. Same cell —
+this compares your fresh run against that record:
 
-Grab every artifact file the session produced (the `eng_run_*` folder),
-then back home:
-
-```bash
-uv run --no-sync abliterate parity --spec specs/run001_parity.yaml \
-  --baseline qwen2.5-0.5b-002/artifacts --run-dir <your downloaded folder>
+```python
+!abliterate parity --spec specs/run001_parity.yaml \
+  --baseline qwen2.5-0.5b-002/artifacts
 ```
 
-This compares your fresh run byte-by-byte against the record from this
-repo. Identical = your machine did the exact same science. Different =
-something drifted and the tool tells you where.
+"Parity within tolerance" = your session did the same science the
+published record did. A mismatch *is not a failure of yours* — sessions
+and hardware drift, and the tool reports exactly which file moved.
 
----
+Then grab your results: in Colab's file browser (folder icon, left),
+find `/content/eng_run_001_qwen2.5-0.5b`, right-click the folder →
+**Download**.
 
 ## You did it — what do you have?
 
@@ -242,12 +208,12 @@ A folder that contains:
 
 ## Where to next
 
+- **Curious how "refused" is judged?** →
+  [Tutorial 4 — Probe files + scoring](04_probe_files_and_scoring.md)
 - **Modify it for your model of choice** →
   [Tutorial 2 — Writing your own run spec](02_writing_a_spec.md)
 - **Fear losing a Colab session?** →
   [Tutorial 3 — Banked resume](03_banked_resume_ops.md)
-- **Curious how "refused" is judged?** →
-  [Tutorial 4 — Probe files + scoring](04_probe_files_and_scoring.md)
 - **Publish to Hugging Face** →
   [Tutorial 5 — Publishing](05_publishing.md)
 

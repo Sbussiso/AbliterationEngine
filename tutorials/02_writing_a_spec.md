@@ -5,7 +5,7 @@ written in an easy file format (YAML). You'll copy a working one and
 edit five obvious things.
 
 Time: 15 minutes. GPU needed: **no** — you can fully check your spec on
-a laptop.
+a laptop, or in the same Colab session as Tutorial 1.
 
 ---
 
@@ -27,7 +27,8 @@ did we use?"
 ## Copy the starter and look at it
 
 ```bash
-cd abliteration          # (from Tutorial 1)
+cd abliteration          # (from Tutorial 1 — or run these checks in a Colab cell,
+                         #   same repo, just prefix the commands with !)
 cp specs/run001_parity.yaml specs/my_first_run.yaml
 ```
 
@@ -192,6 +193,10 @@ uv run --no-sync abliterate --spec specs/my_first_run.yaml validate
 uv run --no-sync abliterate plan --spec specs/my_first_run.yaml
 ```
 
+(Don't have `uv`? On Colab after Tutorial 1's install, or on any machine
+with the tool installed, drop the `uv run --no-sync` part:
+`abliterate validate --spec specs/my_first_run.yaml` — that's the same thing.)
+
 - `validate` = the strict editor: wrong sha length, silly numbers,
   missing required fields → caught here with a specific message
   instead of hours into the GPU run.
@@ -200,7 +205,7 @@ uv run --no-sync abliterate plan --spec specs/my_first_run.yaml
   spec is wrong — not the plan.
 
 The repo's continuous integration runs `validate` + `plan` on every
-shipped spec — doing the same locally means your spec can't surprise
+shipped spec — doing the same check means your spec can't surprise
 the pipeline.
 
 ---

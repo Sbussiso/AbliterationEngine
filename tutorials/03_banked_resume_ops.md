@@ -35,21 +35,22 @@ the design goal, achieved.
 
 ---
 
-## Habit 1 — Download every time a stage finishes
+## Habit 1 — Install once per session, download every time a stage finishes
 
-The tool writes result files as soon as each step completes. But disk on
-Colab dies with the session — so after each stage (or every ~10
-minutes during long stages):
+Fresh session = fresh machine, so you re-install the tool first (from
+Tutorial 1's Step 3: `!pip install -q .`). Then bank your work: the tool
+writes result files as soon as each step completes, but disk on Colab
+dies with the session — so after each stage (or every ~10 minutes during
+long stages):
 
 ```python
-# in a Colab cell: pull the whole results folder down to your machine
-from google.colab import files
-!cd eng_run_001* && zip -qr /tmp/artifacts.zip . && \
+# in a Colab cell: zip the results folder and pull it down to your machine
+!cd /content/eng_run_001* && zip -qr /tmp/artifacts.zip . && \
   python -c "from google.colab import files; files.download('/tmp/artifacts.zip')"
 ```
 
-(Above is the clicky way; the command-line alternative is `colab
-download`, which is what this repo's own operators use.)
+(You can also right-click the results folder in Colab's file browser and
+pick Download — same thing, no code.)
 
 **Rule of thumb: a result file that only lives on Colab doesn't exist.**
 
@@ -57,16 +58,17 @@ download`, which is what this repo's own operators use.)
 
 ## Habit 2 — Resume instead of restart
 
-Start a fresh session, upload the bundle again (Tutorial 1 step 4),
-restore your banked files into the results folder, and re-run with the
-same `PHASE=`. Example: your `ladder` got through 2 of 4 surgery
-attempts...
+Start a fresh session, re-install (Step 3 again), restore your banked
+files into the results folder, and re-run with the same verb. Example:
+your `ladder` got through 2 of 4 surgery attempts...
 
 ```python
-# fresh session: restore the banked work, then resume
-!cd eng_run_001* && unzip -o artifacts.zip -d /content/restored && \
+# fresh session: re-install, restore the banked work, then resume
+!git clone https://github.com/Sbussiso/abliteration.git && \
+  cd abliteration && pip install -q .
+!cd /content/eng_run_001* && unzip -o artifacts.zip -d /content/restored && \
   cp /content/restored/* /content/eng_run_001*/ && \
-  nohup bash runner.sh > phase2_out.log 2>&1 &
+  abliterate ladder --spec specs/run001_parity.yaml --i-know-this-spends-quota
 ```
 
 The engine, before each surgery attempt, does the three-point disk
@@ -95,13 +97,13 @@ variant's save step, not its full measurement.
 |---|---|
 | under 45 min | one stage per session, done |
 | 45–55 min (L4) | ladder + start of the exam; bank between |
-| over an hour | **split it**: two sessions, `PHASE=` verbs exist for each |
+| over an hour | **split it**: one verb per session (`run`, then `ladder`, then `mmlu`) |
 | "the whole mission at once" | resist. you'll die mid-flight and pay twice |
 
-The `PHASE=` verb on the generated runner is the practical splitter:
-`PHASE=run` (measure), `PHASE=ladder` (surgeries), `PHASE=mmlu` (exam),
-`PHASE=publish` (upload prep). Each is designed to be a complete,
-resume-able unit.
+The GPU verbs are the practical splitter, one at a time:
+`run` (measure), `ladder` (surgeries), `mmlu` (exam). Each is designed
+to be a complete, resume-able unit. (`publish` is the local-CPU
+exception — it runs on whatever session you're sitting at, no GPU.)
 
 Bigger GPUs don't buy you a longer timer — it's roughly an hour on T4,
 L4, and A100 alike. The fix is splitting, not sizing up.
