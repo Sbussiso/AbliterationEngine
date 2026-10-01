@@ -1,80 +1,121 @@
-# Tutorial 5 — Publishing: gates, model card, HF push
+# Tutorial 5 — Publish your model (all gates, then upload)
 
-Time: ~10 min (CPU) · GPU: not required (runs locally)
+**Level: advanced beginner.** You made a variant that passed its gates
+(Tutorial 1 steps 4–5). Now: verify everything one last time on your
+own machine, generate the model card *mechanically*, and upload to
+Hugging Face.
 
-Publishing is a **gate-verified push**, in this order:
+Time: ~10 minutes on CPU. GPU: not needed — publishing runs locally.
 
-1. every artifact gate asserted locally
-2. model card generated **from artifacts** (you type no numbers)
-3. identity check on the HF token
-4. push + post-upload verification (card marker, pinned revision, config)
+---
 
-## What happens before a single byte moves
+## The big idea: five locks, then the door opens
 
-Each assertion is a hard stop with a readable message:
+Publishing is deliberately boring: the tool re-checks **every** claim
+about your model, refuses on any failure, generates the model card
+from your result files (no hand-typed numbers!), double-checks your
+identity, uploads, and then reads the hub back to confirm nothing got
+scrambled.
 
-```text
-assert sel["gate"] == "passed"                       # selection gate
-assert sel["publish_eligible_probe_gate"] is True    # residual refusal < 25%
-assert mmlu["guardrail_..."] is True                 # MMLU loss ≤ 3pp
-assert os.path.isdir(VDIR)                           # selected variant on disk
-assert who["name"] == "sbussiso"                     # HF identity = expected
-```
+| Lock | What it checks | Error if it fails |
+|---|---|---|
+| 1. Selection gate | the ladder's winner genuinely passed | "selection gate not passed" |
+| 2. Probe gate | model still refuses under 25% of harmful probes | "refusal >= threshold — DO NOT PUBLISH" |
+| 3. MMLU guardrail | knowledge exam: ≤3 points lost vs original | "MMLU guardrail failed" |
+| 4. Files on disk | the winner's actual weights exist locally | "missing variant dir" |
+| 5. Identity | your Hugging Face token = the account you expect | "identity check failed" |
 
-No pass = no push, and the error names the gate. There is also the flag
-contract — the verb refuses to run without it:
+Five locks, one key: you must pass `--i-know-this-publishes` yourself.
+Nothing ships by accident. That's the whole philosophy of this tool:
+**risky actions require explicit, human-initiated intent.**
+
+---
+
+## Step 1 — The command (after pulling your artifacts home)
 
 ```bash
-abliterate publish --spec specs/<yours>.yaml \
-    --variant-dir <selected-variant-dir> \
-    --mmlu <dir>/mmlu_summary.json \
+uv run --no-sync abliterate publish \
+    --spec specs/my_first_run.yaml \
+    --variant-dir <the-winner's-model-folder> \
+    --mmlu <results-folder>/mmlu_summary.json \
     --i-know-this-publishes
 ```
 
-(`--variant-dir` is where the ladder saved the winning variant's weights;
-`--mmlu` is the guardrail's summary file.)
+- `--variant-dir`: the folder the ladder saved the winning variant to
+  (the on-disk model files — they must be on *your* machine, not
+  still on Colab).
+- `--mmlu`: the exam summary from Tutorial 1 step 5.
 
-## The card is generated, not written
+If any lock fails: **nothing uploads.** The error names the exact
+gate. Fix the run (or the variant), don't the gate.
 
-`publish` builds the HF card mechanically from the artifacts:
+> If your run used the `hitl` block (Tutorial 2), the tool paused at
+> "after_selection" and "before_publish" mid-run — those pauses were
+> designed to give you this exact moment of control.
 
-- **base model + pinned revision** from the spec (and re-verified against
-  the uploaded hub card: `pinned revision missing from hub card` is an
-  assert, not a hope);
-- **the edit recipe**: which layers got orthogonalized, in what order —
-  e.g. the published 7B card lists layers 20, 18, 19 with the exact
-  `(W r) ≈ 0` post-edit property;
-- **probe numbers** from `selection.json` + probe files: baseline/hook/
-  variant refusal rates, benign preservation, degenerate counts;
-- **MMLU numbers** from `mmlu_summary.json` — identical lm-eval config
-  both sides, so the before/after is apples-to-apples;
-- the spec's `card_marker` line and `license` (the published models carry
-  apache-2.0 inherited from their Qwen bases; this repo's code is MIT).
+---
 
-Example of what lands on HF: [`qwen2.5-7b-001/artifacts/publish/CARD.md`](../qwen2.5-7b-001/artifacts/publish/CARD.md)
-— the actual card of a live model.
+## Step 2 — The model card writes itself
 
-## After the push: verification, again
+Every number on the Hugging Face card is generated from your result
+files: probe percentages (baseline vs edited), benign-preservation,
+degenerate counts, MMLU before/after, which layers were edited and how,
+plus the model lineage (which base model, which pinned version) and a
+plain-language safety note + the spec's `card_marker` line.
 
-The publish stage then reads the hub **back** and asserts: expected file
-list, correct config flags, marker present in the README, pinned revision
-present. A push that "succeeded" but uploaded wrong metadata still fails.
+Real example — the whole card is one file:
+[`qwen2.5-7b-001/artifacts/publish/CARD.md`](../qwen2.5-7b-001/artifacts/publish/CARD.md),
+and the live version it became:
+[Qwen2.5-7B-abliterated on HF](https://huggingface.co/sbussiso/Qwen2.5-7B-abliterated).
 
-## Publish-day checklist (the human part)
+Why mechanical cards matter: hand-typed numbers drift (transposed
+digits, stale runs, hopeful rounding). Generated cards can't lie
+unless the result files lie — and those are hash-checked.
 
-- HITL: with `before_publish: true` in the spec, the run pauses for your
-  explicit go/no-go — honor it; the contract is that no unapproved push
-  exists.
-- Make sure the **selected variant's weights are on disk locally** and
-  were hash-verified (Tutorial 1 §4) — publish consumes the disk dir, not
-  a Colab memory state.
-- GitHub Release ≠ HF publish, and on GitHub a pushed tag does not
-  create the Release object — if your repo's "Latest" badge matters,
-  create the Release (`gh release create v<X.Y.Z>`).
+---
 
-## What you are signing up for
+## Step 3 — After upload: the tool double-checks the hub
 
-An abliterated model will answer harmful-policy probes it previously
-refused; that is the point of the research. Cards carry this caveat
-explicitly. Publish for **research and interpretability purposes**, with
-the same caution you'd apply to any powerful uncensored artifact.
+The publish stage reads your new Hugging Face repo *back* and asserts:
+
+- the expected files are all there,
+- the config has the right flags,
+- the marker line is present in the hub README,
+- the pinned base revision appears on the hub card.
+
+A push that "worked" but uploaded the wrong metadata still fails. The
+task isn't done when the bytes leave — it's done when the hub is
+verified to say what you meant.
+
+---
+
+## Step 4 — The human checklist (5 minutes, worth it)
+
+- [ ] Gates passed on the **verified** artifacts (Tutorial 1 step 6's
+      parity check) — not on hopes.
+- [ ] Winner's weights on local disk, hash-checked.
+- [ ] You understand what you're about to host: **an abliterated model
+      answers harmful requests**. That's the research point; the card
+      says it; you should too — in how you share it, whom you share it
+      with, and what you attach to it.
+- [ ] License: your card carries the base model's license (Qwen models
+      are apache-2.0; this repo's code is MIT).
+- [ ] If you also tag a GitHub repo: remember a pushed git tag does
+      **not** create a GitHub *Release* object — run
+      `gh release create vX.Y.Z` if you want the "Latest" badge to update.
+
+---
+
+## What you signed up for
+
+This is interpretability research on open-weight models: understanding
+where safety behavior lives inside a model and what removing it does to
+everything else. Published models carry research-use caveats. Treat a
+model that answers anything as the powerful, dangerous artifact it is.
+
+---
+
+**The full loop:** [Tutorial 1](01_first_ablated_model.md) →
+[Tutorial 2](02_writing_a_spec.md) → [Tutorial 3](03_banked_resume_ops.md)
+→ [Tutorial 4](04_probe_files_and_scoring.md) → **Tutorial 5 (you are
+here)**. Congratulations — you've now run the whole machine.

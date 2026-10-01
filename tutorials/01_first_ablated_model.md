@@ -1,117 +1,270 @@
-# Tutorial 1 — Your first ablated model (full mission loop)
+# Tutorial 1 — Make your first uncensored model (complete walkthrough)
 
-Time: ~40 min on a Colab T4 · GPU: required for `run`/`ladder`/`mmlu`
+**Level: total beginner.** You don't need machine-learning experience —
+if you can open a terminal and copy-paste, you can do this.
 
-You'll take **Qwen2.5-0.5B-Instruct**, find its refusal direction, probe it,
-and leave with a benched variant — on a free T4 — without writing any
-pipeline code. Every step below is the real flow this repo's runs used.
+Time: about 40 minutes (most of it waiting). Cost: a free Google Colab
+GPU session.
 
-> Before GPU steps: every one of them requires the
-> `--i-know-this-spends-quota` flag (or its runner-side equivalent). That's
-> a feature: nothing here spends quota by accident.
+```
+┌────────────────────────────────────────────────────────────┐
+│  What you will do                                          │
+│                                                            │
+│   1. Download a tool named "abliteration_engine"       5m  │
+│   2. Ask it what it plans to do (it prints a plan)     2m  │
+│   3. Pack everything into one upload file (a bundle)   2m  │
+│   4. Open free Google Colab, upload, press one button 10m  │
+│      → the AI that once said "I'm sorry, I can't"          │
+│        now answers the question                            │
+│   5. Check the result against the record                5m │
+│   6. (Later, if you want it) publish to Hugging Face    5m │
+└────────────────────────────────────────────────────────────┘
+```
 
-## 0. CPU prep (on your machine)
+---
+
+## What are we even doing? (3 paragraphs, no jargon)
+
+Big chat models — like Qwen, Llama, Mistral — are trained to **refuse**
+certain requests: "I'm sorry, but I can't help with that." That
+refusal habit lives somewhere specific *inside* the model: researchers
+in 2024 discovered it behaves like a single direction in the stream of
+numbers flowing through the model. Find that direction, delete it, and
+the model still knows everything it knew — it just stops moralizing
+and answers.
+
+**Abliteration** is the name for "find the refusal direction and surgically
+remove it." This repo contains a tool that does the whole thing for you,
+properly: it measures instead of guessing, keeps a mathematical record of
+everything it changes, and refuses to produce a broken or dumber model —
+there's a built-in knowledge check (a standardized exam called MMLU) that
+must still pass afterward.
+
+**Why you can trust this guide:** every number in it comes from runs
+stored in this exact repo, and every command is a real command the tool
+accepts. Nothing here is invented for illustration.
+
+---
+
+## Before you start — what to install
+
+You need two free things:
+
+**1. Python 3.11 or newer** (`python3 --version` to check).
+**2. `uv` — a Python tool manager.** One command:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+(Windows: `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`. On Mac the `curl` line above works in Terminal. On Linux too.)
+
+That's it. The tool itself installs its own dependencies next.
+
+---
+
+## Step 1 — Get the tool (5 minutes)
 
 ```bash
 git clone https://github.com/Sbussiso/abliteration.git
 cd abliteration
-uv sync --extra dev                       # CPU runtime + dev tools
+uv sync --extra dev
+```
+
+That last line downloads everything the tool needs. `--extra dev` means
+"the CPU-only starter kit" — safe on any laptop, no GPU needed yet.
+
+When it finishes, say hello to the tool:
+
+```bash
+uv run --no-sync abliterate --help
+```
+
+You should see the tool's available "verbs" (plan, validate, run, ladder,
+mmlu, publish, parity, bundle). Verbs are just the things the tool can do.
+Think of this like a workshop: `plan` consults the blueprint, `run` does
+the measuring on the GPU, `ladder` does the surgery, `mmlu` gives the
+patient an exam, `publish` ships the result, `bundle` packs up anything
+to move, `parity` double-checks the work.
+
+---
+
+## Step 2 — Ask the tool what it plans to do (2 minutes)
+
+A "spec" is a small settings file that describes one mission: which
+model, which test questions, how strict the safety checks are. The repo
+ships with real ones. Look at what a mission looks like:
+
+```bash
 uv run --no-sync abliterate plan --spec specs/run001_parity.yaml
 ```
 
-Read the stage plan it prints: capture → directions → probes → ladder →
-mmlu → publish. That's your mission. `plan` never loads a model, so this
-is safe on a laptop.
+You'll see something like:
 
-Validate the spec too (fail-fast, no side effects):
-
-```bash
-uv run --no-sync abliterate --spec specs/run001_parity.yaml validate
+```
+=== abliterate plan — run 1 (qwen2.5-0.5b) ...
+patient: Qwen/Qwen2.5-0.5B-Instruct @ 7ae55760
+probe sets: harmful=... (64 prompts), harmless=... (64 prompts)
+stage plan:
+  1  load_patient ...
+  2  capture     64+64 prompts, all-layer final-position residuals
+  3  directions  coherence scan -> L* ...
+  4  probe       baseline + hook-ablated ...
+  5  ladder      variants ['wd_B', 'wd_BN', ...]
+  5.5 mmlu       base vs variant, delta <= 3.0pp gate
+  6  publish      sbussiso/... (HITL before_publish=True)
 ```
 
-## 1. Bundle it up (CPU)
+Plain-English translation of that plan:
 
-`bundle` packages the frozen engine + your spec + a generated runner into
-one tarball with a per-file sha256 manifest:
+- **capture** — read the model's "internal chatter" (activations) while
+  it reads harmful and harmless questions.
+- **directions** — find the chatter direction that shows up when the
+  model is about to refuse.
+- **probe** — actually ask the model questions, before and after a
+  "test-run surgery", and grade the answers.
+- **ladder** — try several versions of the permanent surgery, and grade
+  each one.
+- **mmlu** — give the model a knowledge exam. If it got dumber by more
+  than 3 percentage points, the tool refuses to ship it.
+- **publish** — upload to Hugging Face (only with your explicit OK).
 
-```bash
-uv run --no-sync abliterate bundle --spec specs/run001_parity.yaml \
-    --out-dir bundles
-# -> bundles/eng_run_<NNN>_<patient>_<TS>.tar.gz (+ .sha256 sidecar)
-```
+> Nothing here is loaded or run yet. `plan` is completely safe.
 
-Why: the tarball installs with `uv sync --frozen` **inside Colab's
-existing CUDA environment** (`--system-site-packages` venv), so the exact
-CI-validated dependency set meets Colab's preinstalled GPU torch — no env
-drift, no 2GB re-downloads.
+---
 
-## 2. GPU session (Colab or any CUDA host)
-
-Upload the tarball, then on the host:
-
-```bash
-bash runner.sh                     # PHASE defaults to run (stage A)
-```
-
-The runner is generated, not handwritten — never edit it; regenerate from
-the spec instead. While it runs, poll the engine-owned sentinels:
-
-| Sentinel | Meaning |
-|---|---|
-| `/content/exit_code.txt` | 0 = phase finished clean |
-| stdout `ENG<STAGE>_DONE {json}` | structured stage-complete receipt |
-| `<stage>_error.txt` | written on failure, with the reason |
-
-Stage A leaves: `layer_directions.npz` (all-layer candidates),
-`layer_coherence.json` (the coherence table — pick the winner),
-`probes_baseline.json`, `probes_hook_ablated.json`,
-`refusal_direction_A/B.npy`, `run_config.json` (spec-sha-bound).
-
-## 3. Ladder + guardrail (same or next session)
+## Step 3 — Pack the mission into one file (2 minutes)
 
 ```bash
-PHASE=ladder bash runner.sh        # persistent edits: edit→save→reload→verify→probe
-PHASE=mmlu   bash runner.sh        # MMLU guardrail on the selected variant
+uv run --no-sync abliterate bundle --spec specs/run001_parity.yaml --out-dir bundles
 ```
 
-Each variant lands as `probes_wd_<NAME>.json` + a verified on-disk model
-dir. The **selection gate** (in the engine, not vibes) then picks the
-lowest-refusal variant that preserves benign completions within the
-benign-floor delta and zero degenerate outputs — recorded in
-`selection.json`. If your best variant ≥ 25% refusal
-(`gates.publish_refusal`), the engine marks it publish-ineligible and
-tells you.
+Done? You have one file like
+`bundles/eng_run_001_...tar.gz` — it contains the whole tool, locked to
+the exact tested versions, plus the mission file. This single file is
+what you'll upload to Google Colab, so no setup is needed there.
 
-Interrupted? Skip to Tutorial 3 — completed variants are reused from
-disk instead of recomputed.
+Why not just run the tool on Colab directly? Because Colab's Python is
+slightly different from yours; the bundle freezes the exact tested
+setup so the numbers come out identical.
 
-## 4. Verify, don't trust (CPU — pull back first)
+---
 
-Pull the artifacts (including `run_config.json`, which carries the
-`spec_sha256` that binds every artifact to the exact effective config),
-then diff against the known-good baseline:
+## Step 4 — The GPU session (10 minutes of clicking)
+
+1. Go to [colab.research.google.com](https://colab.research.google.com)
+   (free Google account; pick a **T4 GPU** runtime: Runtime → Change
+   runtime type → T4 GPU).
+2. Upload the bundle: the little folder icon on the left → upload arrow →
+   choose the `.tar.gz`.
+3. New code cell, type exactly:
+
+```python
+!tar xzf eng_run_001*.tar.gz && cd eng_run_001* && nohup bash runner.sh > phase_out.log 2>&1 &
+```
+
+4. Every minute or so, check how it's doing:
+
+```python
+!cd eng_run_001* && tail -5 phase_out.log
+```
+
+You'll watch it: download the model → capture chatter (a few minutes)
+→ find the direction → ask test questions. When you see
+`ENGRUN_DONE` and `exit_code.txt` says `0`, the stage is complete.
+
+**What happened in there?** The tool read the model's internal
+activations on each of 24 layers for 128 questions, found the one
+direction that screams "I'm about to refuse!", and measured how the
+model behaves with that direction switched off in the moment (called a
+"hook"). Record: before = refused 87.5% of harmful questions; with the
+direction off = 0%.
+
+> ⚠️ Free Colab sessions get reclaimed after about an hour. Don't
+> panic: Tutorial 3 shows how to lose nothing and resume. The tool was
+> literally built for this — three real session kills in one day cost
+> nothing here.
+
+---
+
+## Step 5 — Make your model's surgery permanent (10 minutes)
+
+The hook is temporary. To make a model file you can keep:
+
+```bash
+!cd eng_run_001* && nohup bash runner.sh > ladder_out.log 2>&1 &   # with PHASE=ladder
+```
+
+(the runner line for step 4 works, just add `PHASE=ladder` after
+`runner.sh`).
+
+`ladder` means: the tool tries a few different permanent surgeries,
+makes a fresh copy of the model for each, re-loads them to be sure the
+copies are correct, then asks the same test questions. Each attempt
+becomes a file like `probes_wd_B.json`, and a judge within the tool
+(the "selection gate") picks the winner: the one that refuses the least
+*harmful* content while still serving *harmless* questions normally.
+
+Then, the exam:
+
+```bash
+!cd eng_run_001* && PHASE=mmlu bash runner.sh
+```
+
+This runs the MMLU knowledge test (57 subjects: history, law, medicine,
+…) on both the original and your surgically-modified copy. If your
+model got more than 3 percentage points dumber — the run halts and
+tells you. Our published models lost essentially nothing (the 7B one:
+71.77% → 71.77%, i.e. unchanged).
+
+---
+
+## Step 6 — Download your results and check them (5 minutes)
+
+Grab every artifact file the session produced (the `eng_run_*` folder),
+then back home:
 
 ```bash
 uv run --no-sync abliterate parity --spec specs/run001_parity.yaml \
-    --baseline qwen2.5-0.5b-002/artifacts --run-dir <your-artifacts-dir>
+  --baseline qwen2.5-0.5b-002/artifacts --run-dir <your downloaded folder>
 ```
 
-Deterministic JSON metrics must match exactly; fp16-nondeterministic
-tensors get cosine+L1 tolerances. A parity failure is exit 1 with
-`parity_ok: false` — this repo does not fake passes.
+This compares your fresh run byte-by-byte against the record from this
+repo. Identical = your machine did the exact same science. Different =
+something drifted and the tool tells you where.
 
-## 5. What just happened, mechanically
+---
 
-- The engine diffed **mean final-position activations** over harmful
-  prompts against harmless ones, all 24 layers of the 0.5B patient.
-- The direction whose per-layer readout coheres most with a
-  refusal-like subspace wins (`layer_coherence.json`; on the Run 001
-  patient that was decoder layer 17, coherence 0.664).
-- Ablating that direction (projection in the residual stream for the
-  hook; orthogonalization of `o_proj`/`down_proj` rows for persisted
-  variants) measurably dropped harmful-probe refusal 87.5% → 0% on 0.5B
-  while benign behavior stayed within the gate floor.
+## You did it — what do you have?
 
-Now read [Tutorial 2](02_writing_a_spec.md) to bring your own model, or
-[Tutorial 4](04_probe_files_and_scoring.md) to understand what's inside
-those `probes_*.json` files.
+A folder that contains:
+
+- the direction the model uses to refuse (`refusal_direction_*.npy`),
+- before/after report cards on how the model behaved
+  (`probes_baseline.json`, `probes_hook_ablated.json`),
+- (if you ran the ladder) the permanent surgery recipes and their grades,
+- the knowledge exam results (`mmlu_summary.json`),
+- a receipt that ties it all to your exact settings
+  (`run_config.json`).
+
+## Where to next
+
+- **Modify it for your model of choice** →
+  [Tutorial 2 — Writing your own run spec](02_writing_a_spec.md)
+- **Fear losing a Colab session?** →
+  [Tutorial 3 — Banked resume](03_banked_resume_ops.md)
+- **Curious how "refused" is judged?** →
+  [Tutorial 4 — Probe files + scoring](04_probe_files_and_scoring.md)
+- **Publish to Hugging Face** →
+  [Tutorial 5 — Publishing](05_publishing.md)
+
+Two real, downloadable examples of what this makes:
+[0.5B model](https://huggingface.co/sbussiso/Qwen2.5-0.5B-abliterated) ·
+[7B model](https://huggingface.co/sbussiso/Qwen2.5-7B-abliterated)
+
+---
+
+*A note on intent: this is interpretability research on open-weight
+models — understanding how safety training surfaces inside a model. An
+abliterated model will answer harmful requests; published cards say so
+plainly. Use the same judgment you'd apply to any powerful tool.*

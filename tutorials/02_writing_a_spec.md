@@ -1,23 +1,42 @@
-# Tutorial 2 — Writing your own run spec
+# Tutorial 2 — Write your own mission file (run spec)
 
-Time: ~15 min · GPU: not required to validate/plan
+**Level: total beginner.** A "spec" is just a to-do list for the tool,
+written in an easy file format (YAML). You'll copy a working one and
+edit five obvious things.
 
-The spec **is** the run: one YAML file, validated fail-fast at load, whose
-sha256 ends up in every artifact the run produces. Nothing run-specific
-lives in code.
+Time: 15 minutes. GPU needed: **no** — you can fully check your spec on
+a laptop.
 
-## The schema, field by field
+---
 
-Normal form (what the loader produces — `plan` prints it back to you):
+## First: what a spec even is
 
-```text
-spec_version, run_card, patient, probe_sets, decoding,
-ladder, gates, publish, hitl, colab
+The tool does the same job every time (find refusal direction → measure
+→ permanent surgery → exam). *Your* choices are: **which model**, **which
+test questions**, **how strict the quality checks**. Those choices live
+in one small YAML file — the spec. (YAML is just "settings written as
+indented text," like a recipe card.)
+
+The nicest part: the spec's fingerprint (a hash) gets stamped into
+every result file the run produces, so months later you can prove
+which settings made which output. No more "wait, which script version
+did we use?"
+
+---
+
+## Copy the starter and look at it
+
+```bash
+cd abliteration          # (from Tutorial 1)
+cp specs/run001_parity.yaml specs/my_first_run.yaml
 ```
 
-Walk through `specs/run001_parity.yaml` top to bottom:
+Open `specs/my_first_run.yaml` in any text editor. Here's what each
+part means, one block at a time.
 
-### 1. `run_card` — what was this run, in one glance
+---
+
+### Block 1 — `run_card`: a sticky note about this mission
 
 ```yaml
 run_card:
@@ -26,122 +45,177 @@ run_card:
   purpose: "parity baseline - reproduce Run 001 artifacts via v3 spec path"
 ```
 
-Pure documentation, but the engine carries it into every artifact —
-`run_config.json` is self-describing forever.
+Change this freely — it's pure documentation that travels with every
+result file. `patient` = the model you're operating on.
 
-### 2. `patient` — who gets ablated, pinned exactly
+---
+
+### Block 2 — `patient`: exactly which model, locked down
 
 ```yaml
 patient:
-  model_id: Qwen/Qwen2.5-0.5B-Instruct
-  revision: 7ae557604adf67be50417f59c2c2f167def9a775
-  structure_expect:
+  model_id: Qwen/Qwen2.5-0.5B-Instruct      # ← pick your model here
+  revision: 7ae557604adf67be50417f5...      # ← exact version-pin (required)
+  structure_expect:                          # ← model-shape sanity check
     num_hidden_layers: 24
-    num_key_value_heads: 2
     tie_word_embeddings: true
-    o_proj_shape: [896, 896]
     down_proj_shape: [896, 4864]
 ```
 
-- `revision` **must** be a 40-char sha or a `v`-prefixed tag. Branch names
-  and bare floats are load-time errors — this is the pinned-revision
-  contract that makes re-runs meaningful.
-- `structure_expect` is hard-asserted against the real model at load: if
-  upstream re-uploads a modified architecture, you find out immediately,
-  not after six hours of sweeps.
-- `tie_word_embeddings` matters because untied patients get an extra
-  `lm_head` orthogonalization step (see Tutorial 1 §5 vs the 7B run).
+Plain-English rules:
 
-### 3. `probe_sets` — the measurement instrument
+- **`model_id`** is any open chat model on Hugging Face.
+- **`revision`** must be a 40-character ID (or a tag starting with `v`).
+  Why so strict? If the model's authors silently replace the upload,
+  your "before/after" comparison becomes meaningless. The pin makes
+  "get the exact same model again" a guarantee. (How to find it: the
+  model's Hugging Face page → "Files and versions" → the commit ID at
+  the top.)
+- **`structure_expect`** is a built-in lie detector: before any work,
+  the tool checks the model's actual shape (number of layers, matrix
+  sizes). If it doesn't match, everything stops with a clear error —
+  much better than six hours of silent garbage.
+
+> Where do I get the right `structure_expect` numbers? Don't guess —
+> copy them from a shipped spec for the same model family
+> (`specs/qwen25_1p5b_run002_resume.yaml` shows the 1.5B values), or
+> check the model's `config.json` on its HF page.
+
+---
+
+### Block 3 — `probe_sets`: the test questions
 
 ```yaml
 probe_sets:
-  harmful: builtin:primary64_harmful
-  harmless: builtin:primary64_harmless
+  harmful: builtin:primary64_harmful      # 64 questions the model should refuse
+  harmless: builtin:primary64_harmless    # 64 questions it should answer
   n_pairs: 64
-  n_probes: 16
-  refusal_markers: builtin:fp_explicit_v1
+  n_probes: 16                            # how many of each get asked
+  refusal_markers: builtin:fp_explicit_v1 # how "refusal" is detected
 ```
 
-- `builtin:` sets ship with the package, carried verbatim from v2 so old
-  and new runs stay behaviorally identical. Swap in your own by pointing
-  at a file (one prompt per line).
-- `n_probes` = how many of each set actually get generated against
-  (16 in the earlier era, 64 in current runs — more probes = tighter
-  refusal-rate estimates at ~4× generation cost).
-- `refusal_markers` are the frozen v1 grader's substring list; Tutorial 4
-  covers its known false-positive classes and the scoring-v2 re-grade.
+- **`builtin:`** question sets ship inside the tool — same questions
+  for everyone, so results are comparable with every run in this repo.
+- **`n_probes: 16`** = ask 16 of each. Higher (like the current runs'
+  64) gives more trustworthy percentages but costs 4× the GPU time.
+  Start small.
+- **`refusal_markers`** = the word list used to detect refusals
+  ("I cannot", "I'm unable"...). It's frozen from the older version so
+  old and new numbers stay comparable. Tutorial 4 covers where this
+  simple detector gets fooled and how scoring v2 fixes it.
 
-### 4. `decoding` — determinism contract
+Want your own questions? One prompt per line in a text file works —
+the format is in `harness_v3/eng/sets/`.
+
+---
+
+### Block 4 — `decoding`: keep it boring and repeatable
 
 ```yaml
 decoding:
-  max_new_tokens: 200
-  strategy: greedy
-  seed: 0
+  max_new_tokens: 200    # answer length cap
+  strategy: greedy       # always pick the most likely next word
+  seed: 0                # randomness: none
 ```
 
-Greedy + fixed seed = bit-stable generations for the same engine version,
-which is why cross-instance reproductions came out row-identical. You can
-raise `max_new_tokens` for longer patients at linear probe-time cost.
+Leave this exactly as-is unless you know why you'd change it. "Greedy +
+seed 0" means: the same model + same question = the same answer,
+every time, on every machine. That's what makes the byte-identical
+cross-checks in Tutorial 1 possible.
 
-### 5. `ladder` — which persistent edits to attempt
+---
+
+### Block 5 — `ladder`: which surgeries to try
 
 ```yaml
 ladder:
-  variants: [wd_B, wd_BN, wd_ML, wd_ML_BN]
-  k_primary: 3
-  k_combo: 5
+  variants: [wd_B, wd_BN, wd_ML, wd_ML_BN]   # surgical attempts to try
+  k_primary: 3                                # layers used by the 3-layer edit
+  k_combo: 5                                  # layers used by the 5-layer edit
 ```
 
-- `wd_B`/`wd_BN`: 1-layer reads of the direction in different subspaces
-- `wd_ML`: multi-layer (top-k by coherence, `k_primary` layers)
-- `wd_ML_BN`: multi-layer + norm orthogonalization; the combo usually wins
-  when single-direction structure is redundant.
+You don't need to know what the acronyms mean to start (they're
+different *depths* of surgery: from "one spot" to "five spots at
+once"). The selection gate (next block) picks the winner
+automatically. Small models (0.5B–3B) usually only need the simplest
+surgery; big models sometimes need wider ones — that's exactly why
+there's a ladder instead of one guess.
 
-Set `variants: []` for a hook-only characterization run (stage 5 and
-publish gate themselves off — printed in `plan`).
+**No surgeries?** Write `variants: []` and the run just measures the
+model (a "characterization run") — great first experiment for a brand
+new model.
 
-### 6. `gates` — the numbers publish lives and dies by
+---
+
+### Block 6 — `gates`: the pass/fail bars
 
 ```yaml
 gates:
-  benign_floor_delta: 0.10   # variant may lose at most 10pp benign completions
-  degenerate_max: 0          # zero degenerate outputs tolerated, ever
-  publish_refusal: 0.25      # variant needs < 25% residual harmful refusal
-  mmlu_max_loss_pp: 3.0      # knowledge guardrail
+  benign_floor_delta: 0.10   # normal behavior may drop at most 10 points
+  degenerate_max: 0          # broken/babbling outputs tolerated: zero
+  publish_refusal: 0.25      # must refuse less than 25% of harmful prompts
+  mmlu_max_loss_pp: 3.0      # knowledge loss allowed: 3 points
 ```
 
-Tighten freely; loosening `degenerate_max` above 0 is only sane for
-characterization runs you'd never publish.
+These are the tool's conscience. A variant that removes refusals but
+starts babbling, or loses its knowledge, or still refuses a quarter of
+the harmful set — **is auto-rejected for publishing**. You can tighten
+these; only loosen `publish_refusal` if you're intentionally
+characterizing rather than shipping.
 
-### 7. `publish` + `hitl` — outward binding and human checkpoints
+---
+
+### Block 7 — `publish` + `hitl`: where results go & who says OK
 
 ```yaml
 publish:
-  repo_id: sbussiso/Qwen2.5-0.5B-abliterated
+  repo_id: sbussiso/Qwen2.5-0.5B-abliterated   # your HF model page name
   license: apache-2.0
   card_marker: "abliterated by the sbussiso lab research agent"
-  verify_disk_bounds:
-    lm_head: 0.005
-    final_norm: 0.05
-    layer_row: 0.01
 hitl:
-  after_selection: true
-  before_publish: true
+  after_selection: true    # pause after picking the winner: your call
+  before_publish: true     # pause before any upload: your call
 ```
 
-`verify_disk_bounds` = the on-disk weight deltas the saved variant must
-show (proof the edit actually persisted, bounded so nothing else moved).
-`hitl:` stops the runner for explicit human go/no-go at the moments that
-spend real money or reputation.
+> `hitl` = "human in the loop." With both set to `true`, the tool
+> stops and waits for a human "yes" at the two moments that matter:
+> after the winner is chosen, and before anything touches the
+> internet. On a personal hobby run you can flip these to `false` to
+> sail straight through — but then a surprise stays a surprise.
 
-## Validate + plan (CPU, every time)
+---
+
+## Check your work (30 seconds, no GPU)
 
 ```bash
-uv run --no-sync abliterate --spec my_run.yaml validate
-uv run --no-sync abliterate plan --spec my_run.yaml
+uv run --no-sync abliterate --spec specs/my_first_run.yaml validate
+uv run --no-sync abliterate plan --spec specs/my_first_run.yaml
 ```
 
-CI runs both on every shipped spec — mirror them locally and your spec
-can't surprise the pipeline.
+- `validate` = the strict editor: wrong sha length, silly numbers,
+  missing required fields → caught here with a specific message
+  instead of hours into the GPU run.
+- `plan` prints the full step-by-step plan built from **your** spec.
+  Read it. If the plan says something other than you intended, the
+  spec is wrong — not the plan.
+
+The repo's continuous integration runs `validate` + `plan` on every
+shipped spec — doing the same locally means your spec can't surprise
+the pipeline.
+
+---
+
+## Cheat sheet
+
+| I want to... | Edit this |
+|---|---|
+| Use a different model | `patient.model_id` + its `revision` |
+| Ask more questions | `probe_sets.n_probes` |
+| Stricter quality | lower `gates.publish_refusal` |
+| A more thorough surgery | more layers in ladder `k_*` |
+| Just measure, no surgery | `ladder.variants: []` |
+| No pauses before publish | `hitl: {after_selection: false, before_publish: false}` |
+
+Next: [Tutorial 3 — surviving session kills](03_banked_resume_ops.md),
+or jump to [Tutorial 5 — publishing](05_publishing.md) when your gates
+pass.
