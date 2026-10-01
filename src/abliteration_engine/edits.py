@@ -236,7 +236,7 @@ def _banked_variant_summary(spec, name):
         # SELECTED variant's dir is absent (realistic winner at 1.5B is
         # wd_ML, which is always freshly built on the resuming session).
         base = _json.load(open(_os.path.join(out_dir, "probes_baseline.json")))
-        base_sum = core.summarize(base["harmful"], base["harmless"])
+        core.summarize(base["harmful"], base["harmless"])  # baseline sanity: file parses + rows keyed
         s = core.summarize(r_h, r_b)
         s["banked_resume"] = True
         s["edit_info"] = {"banked_resume": "probes restored from prior "
