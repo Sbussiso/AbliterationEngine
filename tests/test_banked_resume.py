@@ -8,18 +8,36 @@ output text present), (3) the LADDER selection payload records which
 variants were banked (provenance for the paper).
 
 Fail-safe: anything corrupt/incomplete/partial re-runs normally.
+
+CPU-CI note: tests/test_ftt20_ports.py locks that edits (torch-bound) is
+imported only on GPU paths; these tests exercise the pure-resume branch of
+run_ladder, so torch is stubbed with a lightweight fake — the resume path
+touches summaries and file naming only, never tensor ops.
 """
 import json
 import os
 import sys
+import types
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 
-import abliteration_engine.edits as edits  # noqa: E402
-from abliteration_engine import core  # noqa: E402
+if "torch" not in sys.modules:
+    _fake_torch = types.ModuleType("torch")
+    _fake_torch.nn = types.SimpleNamespace(
+        Parameter=lambda *a, **k: types.SimpleNamespace())
+    _fake_torch.cuda = types.SimpleNamespace(empty_cache=lambda: None)
+    _fake_torch.__version__ = "0-fake"
+    _fake_torch.cuda.is_available = lambda: False
+    _fake_torch.from_numpy = lambda *a, **k: None
+    _fake_torch.eye = lambda *a, **k: None
+    _fake_torch.outer = lambda *a, **k: None
+    sys.modules["torch"] = _fake_torch
 
 import tempfile  # noqa: E402
+
+import abliteration_engine.edits as edits  # noqa: E402,F811
+from abliteration_engine import core  # noqa: E402
 
 
 def _mk_spec(n_probes=64):
