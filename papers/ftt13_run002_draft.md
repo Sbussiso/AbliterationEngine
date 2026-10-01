@@ -7,7 +7,7 @@
 **Status:** FINAL — all results filled from mirrored artifacts 2026-10-01 00:40 PDT. Publish: blocked by designed probe-side gate (publish_eligible=False at 34.4% vs 0.25 bar).
 
 ## Abstract
-We measure the scale behavior of persistent refusal-direction weight edits on Qwen/Qwen2.5-1.5B-Instruct (pinned revision 989aa798) across a full multi-site ladder on a fixed 64-probe fixture. An inference-time hook achieves near-total refusal removal (1/64 v1 → 0/64 v2 true refusals) with benign behavior improved (3→1 flagged benign probes), but no persistent weight edit reaches the ≤25% publish bar: lm_head-only spaces re-arm to 82.8%, a K=3 multi-layer edit cuts residual to 42.2% (with a perfect 64/64 benign side), and the selected K=5 composite reaches 34.4% (benign 87.5%) — its MMLU guardrail passes at Δ−0.11pp, 30× inside the limit. We read this as thin-gate geometry at intermediate scale: utility-destroying edits are easy, refusal-destroying persistent edits saturate, and the stage-A direction path itself is bit-stable (row-identical probe files across three independent Colab instances). No artifact is published, by the designed gate; the verdict and the measured session-lease reaper are the deliverables.
+We measure the scale behavior of persistent refusal-direction weight edits on Qwen/Qwen2.5-1.5B-Instruct (pinned revision 989aa798) across a full multi-site ladder on a fixed 64-probe fixture. An inference-time hook achieves near-total refusal removal (1/64 v1 → 0/64 v2 true refusals) with benign behavior improved (3→1 flagged benign probes), but no persistent weight edit reaches the ≤25% publish bar: lm_head-only spaces re-arm to 82.8%, a K=3 multi-layer edit cuts residual to 42.2% (with a perfect 64/64 benign side), and the selected K=5 composite reaches 34.4% (benign 87.5%) — its MMLU guardrail passes at Δ−0.11pp, 28× inside the limit. We read this as thin-gate geometry at intermediate scale: utility-destroying edits are easy, refusal-destroying persistent edits saturate, and the stage-A direction path itself is bit-stable (row-identical probe files across three independent Colab instances). No artifact is published, by the designed gate; the verdict and the measured session-lease reaper are the deliverables.
 
 ## Background & Motivation
 - User-facing goal: useful open-weight abliterated models (the 0.5B artifact sbussiso/Qwen2.5-0.5B-abliterated exists; FTT-14/Run-003 paper 372f46635318).
@@ -66,7 +66,7 @@ We measure the scale behavior of persistent refusal-direction weight edits on Qw
 | wd_BN | 53/64 (82.8% s5-file) / 54/64 (s2-T4 stream aggregate, unverifiable) | 57/64 | FAIL >0.25 | ±1 cross-instance aggregate discrepancy, i7-class prime suspect unproven |
 | wd_ML | 27/64 (42.2%) | 64/64 (100%) | FAIL >0.25 (best persistent) | eng_run002_pull_s5 (complete both splits) |
 | wd_ML_BN | 22/64 (34.4%) | 56/64 (87.5%) | FAIL >0.25 (gate passed benign side; refusal over bar) | rs2-1-forensics (byte-complete, sha 87b90ce8d1a10fe4) — LADDER_DONE-matched |
-| MMLU (wd_ML_BN) | base 60.10% / variant 59.99% (Δ −0.11pp, stderr 0.0039 both) | Δ ≤ 3pp gate | **PASS (30× margin)** | rs2-4-mmlu/mmlu_summary.json (mirror cef56b7 base anchor) |
+| MMLU (wd_ML_BN) | base 60.10% / variant 59.99% (Δ −0.11pp, stderr 0.0039 both) | loss_pp_limit=3.0 | **PASS (28× margin: 3.0/0.1068)** | rs2-4-mmlu/mmlu_summary.json (mirror cef56b7 base anchor) |
 
 ### Figures (programmatic, from recorded artifacts only — per user doctrine)
 - F1: ladder refusal-rate by variant (bar, baseline→hook→wd_B→wd_BN→wd_ML→wd_ML_BN + gate line at 25%).
