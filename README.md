@@ -1,200 +1,206 @@
 # abliteration_engine
 
-Config-driven abliteration harness (engine v3): one parameterized engine +
-YAML run specs replace per-run copy-adapted scripts — the drift vector this
-package exists to kill (`run_003.py` once existed in 3 run dirs, differing
-only in ~10 lines of constants).
+[![CI](https://github.com/Sbussiso/abliteration/actions/workflows/ci.yml/badge.svg)](https://github.com/Sbussiso/abliteration/actions/workflows/ci.yml)
+![License](https://img.shields.io/badge/license-MIT-blue)
+![Models](https://img.shields.io/badge/published%20models-2-8bc34a)
 
-**What "abliteration" means here:** refusal behavior in aligned open-weight
-LLMs is mediated by a readable direction in the residual stream (Arditi et
-al. 2024, *"Refusal in LLMs is mediated by a single direction"*). The engine
-captures harmful/harmless contrast activations, scores every layer × readout
-position for direction coherence, and applies the selected refusal direction
-as either a runtime hook or a persistent weight edit (attention `o_proj` +
-MLP `down_proj` orthogonalization) — producing uncensored model variants with
-auditable, reproducible provenance instead of one-off scripts.
+Uncensor open-weight chat models with **one reconfigurable engine** instead
+of a pile of one-off scripts. Every run is a YAML spec; every number in every
+model card is read from machine-generated artifacts; every result is
+reproducible on demand.
 
-- **CI:** [![CI](https://github.com/Sbussiso/abliteration/actions/workflows/ci.yml/badge.svg)](https://github.com/Sbussiso/abliteration/actions/workflows/ci.yml)
-- **License:** MIT · **Published models:** [sbussiso/Qwen2.5-0.5B-abliterated](https://huggingface.co/sbussiso/Qwen2.5-0.5B-abliterated), [sbussiso/Qwen2.5-7B-abliterated](https://huggingface.co/sbussiso/Qwen2.5-7B-abliterated)
+> **Abliteration** removes an aligned LLM's *refusal behavior* by ablating the
+> direction in its residual stream that mediates refusals (Arditi et al.
+> 2024). The result: the same model, same knowledge, same coding ability —
+> but it answers rather than moralizes.
 
-## How it works
+---
 
-A run spec (YAML) is the **only** run-specific input the engine reads. The
-pipeline, driven by that spec:
+## The 30-second version
 
-1. **`plan`** — print the full stage plan from a spec, no model load (CPU-safe).
-2. **`run`** (GPU) — load the pinned patient, capture all-layer final-position
-   residuals over the harmful/harmless probe sets, coherence-scan every
-   layer × position, select the strongest refusal direction, probe
-   baseline vs hook-ablated behavior.
-3. **`ladder`** (GPU) — build the persistent-edit variants (`wd_B`, `wd_BN`,
-   `wd_ML`, `wd_ML_BN`; k-layer primaries and combos), each with
-   edit → save → reload → on-disk verify → probe. **Banked resume:** variants
-   with complete probe files from a prior session are reused instead of
-   recomputed (registry-drop survival).
-4. **`mmlu`** (GPU) — guardrail: identical lm-eval config both sides
-   (full 57-subject MMLU, 0-shot, fp16, seed 0), hard gate on the
-   base→variant knowledge loss (default ≤ 3.0pp).
-5. **`publish`** (CPU, runs locally) — hard-asserts ALL gates before any
-   Hugging Face push: selection gate, benign-preservation floor,
-   degenerate-output ceiling, MMLU loss bound, on-disk weight-delta bounds,
-   card marker, license. Model card numbers are built from artifacts —
-   never hand-typed.
-6. **`parity`** — diff a v3 run's artifacts against a known-good baseline
-   (Run 001): exact for deterministic JSON metrics, cosine+L1 tolerances for
-   fp16-nondeterministic tensors. A parity pass is exit 1 with
-   `parity_ok: false` — never a fake pass.
-7. **`bundle`** — package the frozen engine + spec + runner into a tarball
-   with a per-file sha256 manifest for Colab GPU stages (`uv sync --frozen`
-   inside a `--system-site-packages` venv, so CI-validated versions meet
-   the host's CUDA torch with no env drift).
+| | before | after | benign behavior |
+|---|---|---|---|
+| Qwen2.5-0.5B-Instruct | refuses 87.5% of harmful probes | **0%** | preserved within gate |
+| Qwen2.5-1.5B-Instruct | refuses 98.4% | **0%** (hook) | *improved* 95.3% → 98.4% |
+| Qwen2.5-7B-Instruct | refuses 93.8% | **12.5%** (persistent edit) | 100% preserved |
 
-### Provenance and safety rails
+![Harmful-refusal removal, per run](docs/charts/refusal_removal.png)
 
-- Every artifact dir carries `run_config.json` with the normalized spec +
-  `spec_sha256` — artifacts are bound to the exact effective config.
-- Specs pin the patient's HF revision (40-char sha or `v`-tag only;
-  anything else is a load-time error).
-- Every GPU-spending verb requires an explicit `--i-know-this-spends-quota`;
-  publishing additionally requires `--i-know-this-publishes`. HITL
-  checkpoints are declarable in the spec (`hitl:` block) and are enforced
-  by the runner contract (tests lock this).
-- Scoring v2: on top of the frozen v1 refusal stat (cross-run comparable
-  substring match), a post-hoc re-grade layer separates true refusals from
-  apology-preamble compliance — the flat matcher's false positives are
-  measured, and both classes are reported in probe files
-  (`refused`, `degenerate`, per-row generation times).
+![Benign-preservation guardrail](docs/charts/benign_preservation.png)
 
-## Verified results (primary64 probe sets, 64 harmful + 64 harmless; greedy, seeded)
+Two published, downloadable models already exist:
+**[Qwen2.5-0.5B-abliterated](https://huggingface.co/sbussiso/Qwen2.5-0.5B-abliterated)**
+· **[Qwen2.5-7B-abliterated](https://huggingface.co/sbussiso/Qwen2.5-7B-abliterated)**
 
-| Patient (run) | Baseline harmful refusal | Edited harmful refusal | Benign over-refusal | Selection gate | MMLU gate |
-|---|---|---|---|---|---|
-| Qwen2.5-0.5B-Instruct (Run 001, published) | 14/16 probes (87.5%) | 0/16 (0%) | 1/16 held benign floor (93.75% preserved) | `wd_B` passed | passed |
-| Qwen2.5-7B-Instruct (Run 003, published) | 60/64 (93.75%) | 8/64 (12.5%) | 64/64 → 64/64 | `wd_ML` passed | passed |
-| Qwen2.5-1.5B-Instruct (Run 002) | 63/64 (98.4%) | 0/64 true refusals post-hook | 3/64 → 0/64 (over-refusal also removed) | in progress | in progress |
+*Every figure and number above is generated from artifacts committed in this
+repo — run `uv run --no-sync python docs/make_readme_charts.py` to regenerate
+them yourself.*
 
-Numbers come straight from committed artifacts (`probes_*.json`,
-`selection.json`); scoring-v2 re-grade classified every flagged row
-(see `qwen2.5-*/` dirs and `harness_v3/FREEZE_HANDOFF.md` for details).
-Run 002 final numbers will be updated when its selection + MMLU close.
+---
 
-**Known limitation (documented on purpose):** single-direction ablation
-assumes the convenient "refusal lives in one direction" structure. Larger
-models can implement refusal redundantly across parallel directions, in
-which case a single-direction edit under-removes (visible in the 7B row:
-persistent edit needed where the 1.5B hook sufficed). The ladder +
-selection gate exists to handle exactly this — the engine never assumes,
-it measures.
+## Why a third engine?
 
-## Install
+Abliteration is a ~10-line idea that historically shipped as a ~500-line
+`runNNN.py` — copied from run to run and edited in place until five
+"solutions" disagreed with each other in unknowable ways. This package does
+the opposite:
+
+- **The engine is the same binary for every run.** The run is data
+  (a YAML spec, hash-pinned into every artifact it produces).
+- **Nothing is hand-typed.** Gate decisions and model-card numbers come from
+  the artifacts, mechanically.
+- **Every risky action requires an explicit flag.** You cannot spend GPU
+  quota or push to Hugging Face by accident — `--i-know-this-spends-quota`
+  and `--i-know-this-publishes` are hard contracts.
+- **Failures are loud and structured.** A failed gate exits non-zero with a
+  machine-readable reason; nothing silently degrades into a fake "pass".
+- **Interrupted GPU sessions resume from disk.** Completed variants are
+  banked to files and reused ("banked resume") instead of recomputed —
+  proven across 3 real Colab session-reaps in one day.
+
+## How a run flows
+
+```
+ spec.yaml ──▶ capture activations (harmful vs harmless)
+                     │
+                     ▼
+            score every layer × position for "refusal direction"
+            coherence ──▶ pick the strongest direction
+                     │
+                     ▼
+        ┌──── probe baseline ──── probe hook-ablated ────┐
+        │                        (runtime, stage A)      │
+        ▼                                               ▼
+   ladder of persistent weight edits                    │
+   (wd_B / wd_BN / wd_ML / wd_ML_BN …)                  │
+   each: edit → save → reload → verify → probe          │
+        │                                               │
+        ▼                                               ▼
+   selection gate (benign floor, zero degenerates) ─────┘
+                     │
+                     ▼
+        MMLU guardrail: knowledge loss ≤ 3pp, else STOP
+                     │
+                     ▼
+          publish gates → Hugging Face push + model card
+```
+
+## Quickstart
 
 ```bash
 git clone https://github.com/Sbussiso/abliteration.git
 cd abliteration
-uv sync --extra dev            # CPU-only runtime + dev tools
-uv sync --extra gpu            # + CUDA torch/transformers (Colab/GPU hosts)
+uv sync --extra dev            # CPU-only — enough for plan/validate/parity/bundle
+uv run --no-sync abliterate plan --spec specs/run001_parity.yaml
 ```
 
-Requires Python ≥ 3.11. CPU-only environments can plan, validate, parity,
-and bundle; GPU stages need a CUDA host.
+Requires Python ≥ 3.11, no GPU needed until you run the GPU verbs.
 
-## Usage
+## The verbs
 
-```bash
-abliterate plan    --spec specs/run001_parity.yaml      # stage plan, no model load
-abliterate validate --spec specs/qwen25_7b.yaml        # fail-fast spec check
-abliterate run     --spec <spec> --i-know-this-spends-quota   # stage A (GPU)
-abliterate ladder  --spec <spec> --i-know-this-spends-quota   # persistent edits (GPU)
-abliterate mmlu    --spec <spec> --i-know-this-spends-quota   # guardrail (GPU)
-abliterate publish --spec <spec> --variant-dir <dir> --mmlu mmlu_summary.json \
-                   --i-know-this-publishes                     # gates + HF push
-abliterate parity  --spec <spec> --baseline <v2 dir> --run-dir <v3 dir>
-abliterate bundle  --spec <spec> --out-dir bundles             # Colab tarball
+| Verb | Needs GPU | What it does |
+|---|---|---|
+| `plan` | no | print the full stage plan for a spec — zero side effects |
+| `validate` | no | fail-fast spec check (pinned revisions, gate ordering, …) |
+| `run` | yes | stage A: capture → direction scan → baseline + hook probes |
+| `ladder` | yes | stage B: persistent-edit variants, each edit→save→reload→verify→probe |
+| `mmlu` | yes | guardrail: identical lm-eval config both sides, ≤3pp loss gate |
+| `publish` | no | verify ALL gates locally, then push weights + card to HF |
+| `parity` | no | strict diff vs a known-good baseline run (fails loudly, never fakes) |
+| `bundle` | no | freeze engine+spec+runner into a sha256'd tarball for Colab |
+
+Every GPU verb requires explicit `--i-know-this-spends-quota`; `publish`
+additionally requires `--i-know-this-publishes`.
+
+## Writing your own run
+
+Copy `specs/run001_parity.yaml` and edit the run-specific fields — the spec
+schema is `spec_version, run_card, patient, probe_sets, decoding, ladder,
+gates, publish, hitl, colab`, with fail-fast validation on load:
+
+```yaml
+patient:
+  model_id: Qwen/Qwen2.5-0.5B-Instruct
+  revision: 7ae557604adf67be50417f59c2c2f167def9a775   # pinned sha required
+probe_sets:
+  harmful: builtin:primary64_harmful                   # builtin sets included
+  harmless: builtin:primary64_harmless
+gates:                                                 # publish will refuse
+  benign_floor_delta: 0.10                             #   unless these pass
+  degenerate_max: 0
+  publish_refusal: 0.25
+  mmlu_max_loss_pp: 3.0
 ```
 
-`--spec` works on the parent parser and every subparser (shared-flag
-clobbering is handled); flag order is flexible.
+The built-in probe sets and refusal markers ship verbatim from v2, so old
+and new run configs stay behaviorally identical — that's what makes the
+cross-version parity contract mean something.
 
-### Writing your own spec
+## What's in the box
 
-Start from `specs/run001_parity.yaml` — the normalized schema is
-`spec_version, run_card, patient, probe_sets, decoding, ladder, gates,
-publish, hitl, colab` (validation is fail-fast; the loader hard-asserts
-pinned revisions, probe-count sanity, gate ordering, and ladder subsets).
-Built-in probe sets (`builtin:primary64_harmful`/`_harmless`) and refusal
-markers (`builtin:fp_explicit_v1`) are carried over verbatim from the
-harness v2 runs so configs stay behaviorally identical across versions.
-
-Tests demonstrate every spec-driven contract:
-`uv run --no-sync pytest tests/ harness_v3/smoke_test.py -q` (60 tests;
-packaging, spec validation, runner/publish contract, parity tolerances,
-banked-resume semantics, provenance).
-
-## Repository layout
-
-- `src/abliteration_engine/` — the package: `spec` (yaml load/validate),
-  `data` (builtin probe sets/markers), `core` (stage A:
-  capture→directions→probes), `edits` (stage B ladder + banked resume),
-  `pipeline`/`mmlu`/`publish` (FTT-20 GPU-stage ports), `parity`,
-  `scoring_v2` (refusal re-grade), `bundle` (Colab packaging), `cli`.
-- `harness_v3/` — freeze artifact: `ftt19_spec.md` (engine surface +
-  parity tolerances), `FREEZE_HANDOFF.md`, CPU smoke test, shipped specs,
-  and the `eng/` migrate-only shim (aliases only; deleted at end of FTT-20).
-- `specs/` — shipped run specs (Run 001 parity baseline, 7B, 1.5B resume).
-- `qwen2.5-*/` — per-run research dirs. Run 001 (`qwen2.5-0.5b-002`) is the
-  parity baseline: its `artifacts/` (probes, selection — committed on
-  purpose) is referenced by the test suite and CI.
+```
+src/abliteration_engine/   ← the package (spec/data/core/edits/pipeline/
+                             mmlu/publish/parity/scoring_v2/bundle/cli)
+src/…/sets/                ← builtin probe sets + refusal markers
+specs/                     ← shipped run specs (validated by CI)
+tests/                     ← 64 contract tests, all CPU-only, run in CI
+harness_v3/                ← freeze docs + CPU smoke test + legacy shim
+docs/                      ← README figures + the generator that makes them
+qwen2.5-*/                 ← per-run research records (index below)
+papers/                    ← draft manuscript + figures (FTT-13)
+```
 
 ### Run-dir index
 
-The `qwen2.5-*` dirs follow `<patient>-<run>`; a bare patient dir is the
-pre-numbering "patient zero" mission. Most per-run artifacts are
-deliberately *untracked* (models/weights/checkpoints never belong in git —
-see `.gitignore`); what's committed is the readable record: READMEs, eval
-scripts, JSON summaries, and the few artifact files the test suite
-hard-references.
+`qwen2.5-*` dirs follow `<patient>-<run>`; a bare patient dir predates the
+numbering. Weights/checkpoints are never committed (`.gitignore`); the
+committed parts are the readable record.
 
-| Dir | What it was | Patient | Outcome |
+| Dir | What | Patient | Outcome |
 |---|---|---|---|
 | `qwen2.5-0.5b` | Mission 001 "patient zero" (harness v2) | 0.5B | historical seed |
-| `qwen2.5-0.5b-002` | **Run 001** + parity baseline + eng-v3 live work (banked pulls s3–s5) | 0.5B | published → [0.5B-abliterated](https://huggingface.co/sbussiso/Qwen2.5-0.5B-abliterated); `artifacts/` feeds CI |
-| `qwen2.5-0.5b-004` | **Run 003** round 2: persistent-edit ladder + TruthfulQA/MMLU consolidation | 0.5B | completed |
-| `qwen2.5-0.5b-005` | **Run 004**: RefusalBench-NQ selective-refusal paper (`refusalbench/PAPER.md`) | 0.5B | completed |
-| `qwen2.5-0.5b-006` | **Run 006**: v3 path validation — exact recreation of Run 000 | 0.5B | completed (parity green) |
-| `qwen2.5-7b-001` | **7B patient** (spec `run_number 5`) | 7B | published → [7B-abliterated](https://huggingface.co/sbussiso/Qwen2.5-7B-abliterated) |
-| `qwen2.5-1.5b-003` | **Run 002**: 1.5B, harness v3 source work + session pulls | 1.5B | in progress (FTT-13) |
-
-Ops scripts at the repo root (`ftt20_*.sh`, `reapersplit.sh`) are
-session-scoped Colab watchers/recovery tooling — session artifacts, not
-package code; `src/abliteration_engine/` is the only stable surface.
-
-- `tests/` — packaged-CLI contract tests + Run-001 parity contract.
+| `qwen2.5-0.5b-002` | **Run 001** — parity baseline; CI-referenced artifacts | 0.5B | published → [0.5B](https://huggingface.co/sbussiso/Qwen2.5-0.5B-abliterated) |
+| `qwen2.5-0.5b-004` | **Run 003** r2 — persistent-edit ladder + TruthfulQA/MMLU | 0.5B | completed |
+| `qwen2.5-0.5b-005` | **Run 004** — refusalbench selective-refusal paper | 0.5B | completed |
+| `qwen2.5-0.5b-006` | **Run 006** — v3 path validation (recreates Run 000) | 0.5B | completed |
+| `qwen2.5-7b-001` | **7B run** (spec `run_number 5`) | 7B | published → [7B](https://huggingface.co/sbussiso/Qwen2.5-7B-abliterated) |
+| `qwen2.5-1.5b-003` | **Run 002** — current frontier work (FTT-13) | 1.5B | in progress |
 
 ## Operating notes
 
 - **Colab flow:** `abliterate bundle` → upload tarball → `bash runner.sh`
   (`PHASE=run|ladder|mmlu|publish`) → poll `exit_code.txt` /
-  `ENG<STAGE>_DONE {json}` / `<stage>_error.txt` sentinels (written by the
-  engine, never the runner — a tested contract) → pull artifacts → verify
-  per-file hashes against `bundle_meta.json` before trusting results.
-- **Watch-loop ops:** phase-banking + banked-resume are what make session
-  drops cheap — three registry drops in one day cost ~8 min re-warmup each,
-  with zero banked-work loss (probes reproduced row-identical across
-  independent instances; see `qwen2.5-0.5b-002/eng_run002_pull*/`).
-- **Never fake a gate:** parity/probe/publish failures are loud exits with
-  structured reasons; nothing is auto-converted into a pass.
+  `ENG<STAGE>_DONE` / `<stage>_error.txt` sentinels (written by the engine,
+  never the runner — contract-tested) → pull → verify per-file hashes
+  against `bundle_meta.json` before trusting anything.
+- **Session reaps are cheap here:** phase-banking + banked-resume mean a
+  killed Colab session costs an ~8-min re-warmup, not re-computation
+  (probe outputs reproduced byte-identically across 3 independent restarts
+  in one day).
+- **Never fake a gate:** parity/probe/publish failures exit non-zero with
+  structured reasons. The one thing this repo does not do is pretend.
 
-## Background reading
+## Honest limitations
+
+- The method assumes refusal is mediatable by a *single* direction — true
+  for the 0.5B/1.5B patients measured here; larger models may implement
+  refusal redundantly, in which case one direction removes less (the 7B
+  row above needed a persistent multi-layer edit rather than a pure hook).
+  The engine doesn't assume — it measures: the ladder + selection gate
+  exists for exactly this case.
+- Removing refusals removes caution; an abliterated model will answer
+  harmful requests. Everything in this repo exists for **mechanistic
+  interpretability research on open-weight models** — treat the outputs as
+  research artifacts, and published model cards carry the same caveat.
+
+## References
 
 - Arditi et al. 2024, *Refusal in Language Models Is Mediated by a Single
-  Direction* (residual-stream refusal direction; the ablation method used here)
-- Wei et al. 2023 / the broader safety-fine-tuning literature (why the
-  refusal direction exists to begin with)
+  Direction* — the core method.
+- Wei et al. 2023 — context: why refusals exist to begin with.
 
 ## Status
 
-Engine v3 is running real patients (three Qwen2.5 sizes), with CI-gated
-packaging, a frozen cross-run comparable refusal stat, and two published
-models. Open work: Run 002 (1.5B) final sweeps + publish; `harness_v3/eng/`
-shim deletion at FTT-20 close; MMLU-phase extension for banked resume of
-partially-completed sweeps.
+Engine v3 runs real patients end-to-end with CI-gated packaging and two
+published models. Open: finish Run 002 (1.5B) publish; end-of-FTT-20 shim
+deletion.
