@@ -52,11 +52,66 @@ $COLAB upload -s "$SN" "$T" /content/banked.tar 2>&1 | tee -a "$LOG"
 B=$(basename "$BUNDLE"); cp "$BUNDLE" /tmp/; chmod 644 "/tmp/$B"
 $COLAB upload -s "$SN" "/tmp/$B" "/content/$B" 2>&1 | tee -a "$LOG"
 
-# one exec: verify sha, extract, place banked, launch detached
-printf 'import subprocess, tarfile, hashlib, os, shutil\nb=open("/content/%s","rb").read()\nh=hashlib.sha256(b).hexdigest()\nassert h.startswith("8ac5ebafb2f75a0c"), h\nt=tarfile.open("/content/%s"); t.extractall("/content"); t.close()\nbt=tarfile.open("/content/banked.tar"); bt.extractall("/content/banked_s5"); bt.close()\nprint("SHA_OK + extracted + banked ready")\n' "$B" "$B" > /tmp/prestage_s.py
+# one exec: verify sha, extract, place + VALIDATE banked, narrow spec to the
+# remaining two variants (dev-workstation co-sign 2026-09-30: an invalid
+# banked file must cap re-work at wd_ML/wd_ML_BN, not re-run the full 5-var
+# ladder inside the reaper window)
+cat > /tmp/prestage_s.py <<'PYEOF'
+import tarfile, hashlib, json, glob, os, re, shutil
+B = "__B__"
+b = open("/content/" + B, "rb").read()
+h = hashlib.sha256(b).hexdigest()
+assert h.startswith("8ac5ebafb2f75a0c"), "bundle sha mismatch: " + h
+t = tarfile.open("/content/" + B); t.extractall("/content"); t.close()
+bt = tarfile.open("/content/banked.tar"); bt.extractall("/content/banked_s5"); bt.close()
+
+# locate engine out dir (bundle-extracted) and copy banked artifacts in
+cands = sorted(glob.glob("/content/eng_run_002*"))
+assert cands, "no engine dir after extract: " + ", ".join(sorted(glob.glob('/content/*')))
+OUT = cands[0]
+os.makedirs(OUT, exist_ok=True)
+kept, dropped = [], []
+for f in sorted(glob.glob("/content/banked_s5/*")):
+    name = os.path.basename(f)
+    if name.startswith("probes_"):
+        ok = False
+        try:
+            d = json.load(open(f))
+            r_h, r_b = d["harmful"], d["harmless"]
+            ok = (len(r_h) == len(r_b) == 64 and all(
+                x.get("refused") is not None and x.get("output")
+                for x in r_h + r_b))
+        except Exception:
+            ok = False
+        if ok:
+            shutil.copy(f, os.path.join(OUT, name)); kept.append(name)
+        else:
+            dropped.append(name + " (invalid -> re-runs)")
+    else:
+        shutil.copy(f, os.path.join(OUT, name)); kept.append(name)
+
+# narrow the spec's ladder.variants to the remaining work: wd_ML + wd_ML_BN
+specs = [p for p in glob.glob("/content/**/*.yaml", recursive=True)
+         if os.path.isfile(p)
+         and "wd_ML_BN" in open(p, errors="ignore").read()]
+narrowed = []
+for p in specs:
+    s = open(p).read()
+    s2, n = re.subn(r"(variants:\s*)\[[^\]]*?\]",
+                    r"\1[wd_ML, wd_ML_BN]", s, count=1)
+    if n == 1:
+        open(p, "w").write(s2)
+        narrowed.append(os.path.relpath(p, "/content"))
+
+print("PRESTAGE_OK out=" + OUT)
+print("KEPT:", ", ".join(kept))
+print("DROPPED:", ", ".join(dropped) if dropped else "none")
+print("NARROWED:", ", ".join(narrowed) if narrowed else "NO_SPEC_MATCH")
+PYEOF
+sed -i "s/__B__/$B/" /tmp/prestage_s.py
 chmod 644 /tmp/prestage_s.py
 $COLAB upload -s "$SN" /tmp/prestage_s.py /tmp/prestage_s.py 2>&1 | tail -1
-printf 'exec(open("/tmp/prestage_s.py").read())\n' | $COLAB exec -s "$SN" --timeout 120 2>&1 | tee -a "$LOG" | head -3
+printf 'exec(open("/tmp/prestage_s.py").read())\n' | $COLAB exec -s "$SN" --timeout 180 2>&1 | tee -a "$LOG" | head -6
 
 # run the phase detached (setsid), with ENG_OUT_ROOT=/content, banked into place
 PH="$STAGE" \
