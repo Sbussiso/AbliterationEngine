@@ -15,6 +15,7 @@ import numpy as np
 from abliteration_engine.data import resolve_markers, resolve_probe_set
 
 REFUSAL_MARKERS = None  # set per-run by from_spec() or ensure_markers()
+_REFUSAL_MARKERS_SRC = None  # markers-ref the global was resolved FROM
 
 
 def ensure_markers(spec):
@@ -27,14 +28,24 @@ def ensure_markers(spec):
     TypeError: 'NoneType' object is not iterable. Every phase that can
     reach run_probes() without from_spec MUST call this first.
 
-    Idempotent; leaves the global untouched if the spec has no probe_sets
-    (raises KeyError — actionable, matching load_spec's validation style).
+    Cross-spec hygiene (group review of d2998a2): a persistent kernel
+    (Colab's is exactly that) can run spec A then spec B within one
+    process. Short-circuiting on a non-None global leaked spec A's
+    markers into spec B's probes — silently, same lists-same-results
+    trap. The global is therefore keyed to the spec it came from: it
+    re-resolves whenever the spec's refusal_markers ref differs.
+    Same-ref calls stay one-liner cheap (resolve_markers builtin: is
+    pure dict lookup, so re-resolution is not a perf concern).
+
+    Leaves the global untouched if the spec has no probe_sets (raises
+    KeyError — actionable, matching load_spec's validation style).
     """
-    global REFUSAL_MARKERS
-    if REFUSAL_MARKERS is not None:
-        return REFUSAL_MARKERS
+    global REFUSAL_MARKERS, _REFUSAL_MARKERS_SRC
     ref = spec["probe_sets"]["refusal_markers"]
+    if REFUSAL_MARKERS is not None and _REFUSAL_MARKERS_SRC == ref:
+        return REFUSAL_MARKERS
     REFUSAL_MARKERS = resolve_markers(ref)
+    _REFUSAL_MARKERS_SRC = ref
     return REFUSAL_MARKERS
 
 
@@ -70,28 +81,10 @@ def _out_dir(spec, create=False):
     return d
 
 
-def _stage_boilerplate(stage_name, fn, spec, ctx, *args, **kwargs):
-    """Common sentinel/error handling for one engine stage."""
-    out_dir = _out_dir(spec, create=True)
-    with open(sentinel_exit(), "w") as f:
-        f.write("running")
-    code = 1
-    try:
-        result = fn(spec, ctx, *args, **kwargs)
-        code = 0
-        return result
-    except Exception:
-        import traceback
-        traceback.print_exc()
-        try:
-            with open(os.path.join(out_dir, f"{stage_name}_error.txt"),
-                      "w") as f:
-                f.write(traceback.format_exc()[-8000:])
-        except Exception:
-            pass
-    finally:
-        with open(sentinel_exit(), "w") as _f:
-            _f.write(str(code))
+# NOTE (group review d2998a2): the old core._stage_boilerplate was deleted —
+# zero call sites, and pipeline._run_phase is the one live sentinel writer
+# (same contract: engine-owned exit_code, per-stage error file). One
+# implementation so the next fix can't land on a dead duplicate.
 
 
 # ---- stage 1: load patient ------------------------------------------------
@@ -419,8 +412,10 @@ def from_spec(spec):
     from abliteration_engine.data import resolve_probe_set
 
     out_dir = _out_dir(spec, create=True)
-    global REFUSAL_MARKERS
-    REFUSAL_MARKERS = resolve_markers(spec["probe_sets"]["refusal_markers"])
+    global REFUSAL_MARKERS, _REFUSAL_MARKERS_SRC
+    ref = spec["probe_sets"]["refusal_markers"]
+    REFUSAL_MARKERS = resolve_markers(ref)
+    _REFUSAL_MARKERS_SRC = ref
     torch.manual_seed(spec["decoding"]["seed"])
     t_start = time.time()
 
