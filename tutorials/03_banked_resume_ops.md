@@ -65,7 +65,7 @@ your `ladder` got through 2 of 4 surgery attempts...
 ```python
 # fresh session: re-install, restore the banked work, then resume
 !git clone https://github.com/Sbussiso/abliteration.git && \
-  cd abliteration && pip install -q .
+  cd abliteration && pip install -q . && pip install -q lm-eval
 !cd /content/eng_run_001* && unzip -o artifacts.zip -d /content/restored && \
   cp /content/restored/* /content/eng_run_001*/ && \
   abliterate ladder --spec specs/run001_parity.yaml --i-know-this-spends-quota

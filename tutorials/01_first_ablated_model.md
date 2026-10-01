@@ -63,11 +63,15 @@ In a fresh code cell:
 ## Step 3 — Install the tool (2 minutes)
 
 ```python
-!pip install -q . && abliterate --help
+!pip install -q . && pip install -q lm-eval && abliterate --help
 ```
 
 `pip install .` reads the repo, builds the `abliterate` command, and
-installs its few dependencies. `abliterate --help` greets you with the
+installs its few dependencies. The second install brings `lm-eval`, the
+standardized-exam engine the tool uses for its knowledge check in
+Step 5b — grabbing it now saves you a surprise later.
+
+`abliterate --help` greets you with the
 tool's available "verbs": plan, validate, run, ladder, mmlu, publish,
 parity, bundle. Verbs are just the things the tool can do. Think of
 this like a workshop: `plan` consults the blueprint, `run` does the
@@ -130,7 +134,7 @@ One cell:
 sure nothing expensive ever runs by accident.)
 
 You'll watch it: download the model → capture chatter (a few minutes)
-→ find the direction → ask test questions. When you see `ENGRUN_DONE`,
+→ find the direction → ask test questions. When you see `RUN_DONE`,
 stage A is complete.
 
 **What happened in there?** The tool read the model's internal
@@ -142,7 +146,7 @@ direction off = 0%.
 
 > ⚠️ Free Colab sessions get reclaimed after about an hour. Don't
 > panic: Tutorial 3 shows how to lose nothing and resume. The tool was
-> literally built for this — three real session kills in one day cost
+> literally built for this — four real session kills in one day cost
 > nothing here. In practice: pull your results folder down
 > (next step) after each stage, and start a fresh session when Google
 > ends yours.

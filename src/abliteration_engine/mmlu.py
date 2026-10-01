@@ -66,6 +66,25 @@ def mmlu_phase(spec_path):
         return 5
     sel = json.load(open(sel_path))
 
+    # FTT-20 smoke-run finding 2026-10-01: lm-eval is NOT a pip-install dep
+    # (it ships via the gpu extra / preinstalled Colab stack). A fresh
+    # clone + `pip install -q .` session died here with empty stdout and
+    # rc=3 — indistinguishable from a hung cell to the person watching.
+    # Fail loud with the exact fix instead; rc=3 stays reserved for
+    # genuine parse failures (v2 contract).
+    try:
+        import lm_eval  # noqa: F401
+    except ModuleNotFoundError:
+        print("MMLU BLOCKED: lm_eval is not installed in this session.",
+              flush=True)
+        print("Fix:  !pip install -q lm-eval    (then re-run this cell)",
+              flush=True)
+        logw("REFUSING: lm_eval not importable - install lm-eval "
+             "(see pyproject gpu extra) and re-run the mmlu phase")
+        with open(exit_f, "w") as f:
+            f.write("4")
+        return 4
+
     with open(exit_f, "w") as f:
         f.write("running")
     open(log, "w").close()

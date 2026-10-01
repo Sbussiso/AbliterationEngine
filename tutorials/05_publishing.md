@@ -57,8 +57,16 @@ the tool is already installed there):
     --i-know-this-publishes
 ```
 
-You'll need your Hugging Face token in the session either way
-(`huggingface-cli login` from a terminal — or `%pip install -q huggingface_hub && !huggingface-cli login` in Colab).
+You'll need your Hugging Face token in the session either way —
+`huggingface-cli login` from a terminal, or in Colab:
+
+```python
+!pip install -q -U huggingface_hub
+!huggingface-cli login
+```
+
+(The first command installs the tools; the second opens the login
+prompt — paste your token from [hf.co/settings/tokens](https://huggingface.co/settings/tokens).)
 
 - `--variant-dir`: the folder the ladder saved the winning variant to
   (the on-disk model files — wherever you're running this, they must
