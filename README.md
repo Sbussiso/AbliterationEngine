@@ -96,6 +96,9 @@ uv run --no-sync abliterate plan --spec specs/run001_parity.yaml
 
 Requires Python ≥ 3.11, no GPU needed until you run the GPU verbs.
 
+New here? **[tutorials/](tutorials/README.md)** walks the whole machine —
+start with [your first ablated model](tutorials/01_first_ablated_model.md).
+
 ## The verbs
 
 | Verb | Needs GPU | What it does |
