@@ -14,7 +14,7 @@ as either a runtime hook or a persistent weight edit (attention `o_proj` +
 MLP `down_proj` orthogonalization) — producing uncensored model variants with
 auditable, reproducible provenance instead of one-off scripts.
 
-- **CI:** [![CI](https://github.com/SourceBox-LLC/abliteration/actions/workflows/ci.yml/badge.svg)](https://github.com/SourceBox-LLC/abliteration/actions/workflows/ci.yml)
+- **CI:** [![CI](https://github.com/Sbussiso/abliteration/actions/workflows/ci.yml/badge.svg)](https://github.com/Sbussiso/abliteration/actions/workflows/ci.yml)
 - **License:** MIT · **Published models:** [sbussiso/Qwen2.5-0.5B-abliterated](https://huggingface.co/sbussiso/Qwen2.5-0.5B-abliterated), [sbussiso/Qwen2.5-7B-abliterated](https://huggingface.co/sbussiso/Qwen2.5-7B-abliterated)
 
 ## How it works
@@ -89,7 +89,7 @@ it measures.
 ## Install
 
 ```bash
-git clone https://github.com/SourceBox-LLC/abliteration.git
+git clone https://github.com/Sbussiso/abliteration.git
 cd abliteration
 uv sync --extra dev            # CPU-only runtime + dev tools
 uv sync --extra gpu            # + CUDA torch/transformers (Colab/GPU hosts)
