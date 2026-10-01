@@ -144,6 +144,30 @@ banked-resume semantics, provenance).
 - `qwen2.5-*/` — per-run research dirs. Run 001 (`qwen2.5-0.5b-002`) is the
   parity baseline: its `artifacts/` (probes, selection — committed on
   purpose) is referenced by the test suite and CI.
+
+### Run-dir index
+
+The `qwen2.5-*` dirs follow `<patient>-<run>`; a bare patient dir is the
+pre-numbering "patient zero" mission. Most per-run artifacts are
+deliberately *untracked* (models/weights/checkpoints never belong in git —
+see `.gitignore`); what's committed is the readable record: READMEs, eval
+scripts, JSON summaries, and the few artifact files the test suite
+hard-references.
+
+| Dir | What it was | Patient | Outcome |
+|---|---|---|---|
+| `qwen2.5-0.5b` | Mission 001 "patient zero" (harness v2) | 0.5B | historical seed |
+| `qwen2.5-0.5b-002` | **Run 001** + parity baseline + eng-v3 live work (banked pulls s3–s5) | 0.5B | published → [0.5B-abliterated](https://huggingface.co/sbussiso/Qwen2.5-0.5B-abliterated); `artifacts/` feeds CI |
+| `qwen2.5-0.5b-004` | **Run 003** round 2: persistent-edit ladder + TruthfulQA/MMLU consolidation | 0.5B | completed |
+| `qwen2.5-0.5b-005` | **Run 004**: RefusalBench-NQ selective-refusal paper (`refusalbench/PAPER.md`) | 0.5B | completed |
+| `qwen2.5-0.5b-006` | **Run 006**: v3 path validation — exact recreation of Run 000 | 0.5B | completed (parity green) |
+| `qwen2.5-7b-001` | **7B patient** (spec `run_number 5`) | 7B | published → [7B-abliterated](https://huggingface.co/sbussiso/Qwen2.5-7B-abliterated) |
+| `qwen2.5-1.5b-003` | **Run 002**: 1.5B, harness v3 source work + session pulls | 1.5B | in progress (FTT-13) |
+
+Ops scripts at the repo root (`ftt20_*.sh`, `reapersplit.sh`) are
+session-scoped Colab watchers/recovery tooling — session artifacts, not
+package code; `src/abliteration_engine/` is the only stable surface.
+
 - `tests/` — packaged-CLI contract tests + Run-001 parity contract.
 
 ## Operating notes
