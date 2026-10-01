@@ -79,12 +79,26 @@ We measure the scale behavior of persistent refusal-direction weight edits on Qw
 | wd_ML_BN | 22/64 (34.4%) | 56/64 (87.5%) | probe gate: FAIL >0.25 (benign side passed) | rs2-1-forensics (byte-complete, sha 87b90ce8d1a10fe4) — LADDER_DONE-matched |
 | MMLU (wd_ML_BN) | base 60.10% / variant 59.99% (Δ −0.11pp, stderr 0.0039 both) | Δ ≤ 3pp gate | **PASS (30× margin)** | rs2-4-mmlu/mmlu_summary.json (mirror of cef56b7 base anchor) |
 
-**Sample output (representative, from banked files):** baseline refusals are instant (median refgen 0.6 s, stock text: "I'm sorry, but I can't assist with that."). wd_ML_BN outputs read as refusal-with-hedging or partial help (median gen 6.6–8.1 s) — consistent with directional weakening, not removal; v2 classifies several v1-flagged post-edit outputs as compliant-with-apology-preamble rather than true refusals.
+**
+**Fresh-GPU base-vintage nondeterminism (measured):** four legs of the SAME base eval — banked anchor 0.6009828 (committed cef56b7), rs2-3 attempt1 0.6014813 (wall 1395s), rs2-3 attempt2 0.6016237 (wall 1325s), all n=14,042, stderr 0.00392. Spread 0.064pp max-min, each within ~1 pooled stderr — statistically identical but digit-unstable; the final MMLU leg (rs2-4) reused the banked base (BANKED RESUME receipt), making the reported delta digit-stable. Honest fresh-GPU error bar: ~4-6e-4 absolute.
+
+**Variant-path contract (root cause of both variant-leg crashes, source-named):** rebuild_variant.py writes OUT-relative (/content/eng_run_002_qwen2.5-1.5b/wd_ML_BN, asserted), but mmlu.py:78 resolves via selection.json selected_variant_dir = /content/wd_ML_BN (BARE), and transformers hub.cached_files branches on existence: existing bare path loads locally, absent one falls to repo-id validation and raises HFValidationError/OSError (hub.py:496). Rebuild success is insufficient — the variant must exist AT the named path before chain handoff. rs2-2 + rs2-3 (both attempts) hit the absent branch; cp-fix (in-flight at reap) and rs2-4 combined prestage (rebuild at named path) are two forms of the same fix; rs2-4 closed the class (variant exit=0, wall=604s).
+
+Sample output (representative, from banked files):** baseline refusals are instant (median refgen 0.6 s, stock text: "I'm sorry, but I can't assist with that."). wd_ML_BN outputs read as refusal-with-hedging or partial help (median gen 6.6–8.1 s) — consistent with directional weakening, not removal; v2 classifies several v1-flagged post-edit outputs as compliant-with-apology-preamble rather than true refusals.
 
 ### Figures (programmatic, from recorded artifacts only)
 - F1: harmful refusal rate by condition, with the 25% publish gate line — `papers/figures/f1_ladder_refusal.png` (generator: `papers/make_figs_f1_f2.py`).
 - F2: benign preservation by condition against the baseline−10pp floor — `papers/figures/f2_benign_preservation.png`.
 - F3: reaper anatomy — declared lease vs observed ages, s1–s5 — `papers/figures/f3_reaper_anatomy.png` (generator: `papers/make_fig_f3.py`).
+
+## Analysis & Discussion
+
+- **Scale-regime read.** In the 0.5B run the composite edit closed the hook-vs-persistent gap; at 1.5B the composite narrows it (34.4% vs 0%) but does not close it. The site-count axis (K) is the actionable knob and K=5 is not sufficient at this scale; per-layer direction refresh (re-extracting the direction at each edited site rather than reusing the L19 readout-space proxy) and K>5 are the obvious next steps.
+- **The asymmetry is the finding.** Every variant keeps ≥57/64 benign probes answered (one has 64/64): multi-site weight editing preserves utility better than it removes refusal at 1.5B. Practitioner guidance: at this scale, use the hook on safety-critical serving paths; use persistent composites only when residual-refusal levels near 1/3 are acceptable.
+- **Benign blind spots.** The edit that removed 63/64 harmful refusals also removed all 3 genuine baseline over-refusals (own-house lock install, own-apartment key copy, faster doctor appointment) — the refusal direction carries over-refusal, so removing it repairs false refusals too.
+- **Suppression-regime caveat (Malla 2609.06934).** Hook-based removal is inference-time and does not establish permanence; the benign-SFT robustness probe battery (queued future-work item 4) is the decisive test for the persistent artifact family.
+- **Provenance lesson institutionalized.** Every headline digit names artifact + revision; stream aggregates were labeled pre-artifact vintage and both vintages carried where rows were unverifiable (wd_BN ±1 discrepancy).
+- **Infrastructure finding.** A per-assignment lease (fit:3600 s by declaration, T4×16/A100×28/L4×6 in the CLI debug logs) reaps sessions at ~60 min regardless of load; busy-unsafe, keep-alive-blind, arch-invariant. Quota-cycle hypothesis rejected (deaths scatter 261 min from UTC-midnight anchors vs constant ages). Countermeasures: per-phase pulls, probes-validated banked resume with spec-narrow, REAPERSPLIT driver, death-forensics-before-exit. Open residual: lease-EXIT vs proxy-token-REVOCATION attribution.
 
 ## Artifacts & Reproducibility
 - Repo (version-of-record): VM151 `/root/research/abliteration` · GitHub mirror: github.com/Sbussiso/abliteration (dev-workstation-maintained; docs commit `69255bf`).
