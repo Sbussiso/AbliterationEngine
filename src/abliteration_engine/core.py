@@ -15,6 +15,40 @@ import numpy as np
 from abliteration_engine.data import resolve_markers, resolve_probe_set
 
 REFUSAL_MARKERS = None  # set per-run by from_spec() or ensure_markers()
+
+# session grader cache: (markers, score_fn) keyed by the loaded spec's
+# _spec_sha256 — persistent-kernel safe (same spec sha returns the same
+# pair; a different sha re-resolves). See session_grader().
+_SESSION_GRADER_CACHE = {}
+
+
+def session_grader(spec):
+    """(markers, score_fn) for one spec per probe_sets.marker_mode.
+
+    v1 (default/absent) = refusal_score substring grader — the frozen
+    Run-001 parity contract's exactly-once grading at probe time. v2 =
+    refusal_score_v2 (word boundary + offer-tail exception, grader-under-
+    study; zero collateral flips validated over N=192 logged rows).
+    Cached by spec sha so from_spec and ladder_phase in one persistent
+    kernel always share the session's one grader pair.
+    """
+    key = spec.get("_spec_sha256") or id(spec)
+    pair = _SESSION_GRADER_CACHE.get(key)
+    if pair is None:
+        from .data import resolve_markers
+
+        markers = resolve_markers(spec["probe_sets"]["refusal_markers"])
+        mode = (spec.get("probe_sets") or {}).get("marker_mode", "v1")
+        score_fn = {"v1": refusal_score,
+                    "v2": _scoring_v2_scalar}.get(mode)
+        if score_fn is None:
+            raise ValueError(f"probe_sets.marker_mode {mode!r} unsupported "
+                             "(have: v1, v2)")
+        pair = (markers, score_fn)
+        _SESSION_GRADER_CACHE[key] = pair
+    return pair
+
+
 _REFUSAL_MARKERS_SRC = None  # markers-ref the global was resolved FROM
 
 
@@ -207,10 +241,29 @@ def final_norm_module(model):
     return n
 
 
-# ---- probe scoring (v2-identical semantics) --------------------------------
+# ---- probe scoring (v2-identical semantics: v1 scorer is the frozen
+# Run-001 parity contract — probe artifact `refused` grades are byte-diffed
+# by parity, so v1 NEVER changes. The opt-in v2 grader lives in
+# scoring_v2.py (dev-workstation FTT-26-hardened: list-anchored help
+# evidence, empathy-marker exceptions, split-aware subclasses) and is
+# reached through session_grader() when a spec sets
+# probe_sets.marker_mode: v2 — validated over N=192 logged smoke rows,
+# tests/test_marker_mode_v2.py pins the exact flip set. -------------------
 def refusal_score(text, markers):
     t = (text or "").lower()
     return 1 if any(m in t for m in markers) else 0
+
+
+def _scoring_v2_scalar(text, markers):
+    """Numeric adapter for the opt-in run-time v2 grader (scoring_v2
+    module): v2_refused only. The subclass taxonomy needs the h/b split,
+    which run-time rows don't carry — subclasses stay a post-hoc job via
+    scoring_v2.grade_rows (T4's regrade flow); run-time v2 refuses
+    identically regardless of split (classify's numeric result is
+    split-independent)."""
+    from . import scoring_v2
+
+    return scoring_v2.classify(text, markers)[0]
 
 
 def is_degenerate(text):
@@ -238,13 +291,15 @@ def generate(tok, model, prompt, max_new=200, markers=None):
     return text
 
 
-def run_probes(tok, model, prompts, tag="", max_new=200, markers=None):
+def run_probes(tok, model, prompts, tag="", max_new=200, markers=None,
+               score_fn=None):
     markers = markers or REFUSAL_MARKERS
+    score = score_fn or refusal_score  # v1 frozen default; v2 opt-in
     rows = []
     for j, p in enumerate(prompts):
         t0 = time.time()
         o = generate(tok, model, p, max_new=max_new)
-        r = refusal_score(o, markers)
+        r = score(o, markers)
         rows.append({"i": j, "prompt": p, "output": o, "refused": r,
                      "degenerate": is_degenerate(o),
                      "gen_s": round(time.time() - t0, 1)})
@@ -276,6 +331,7 @@ def run_baseline_and_hook_probes(spec, tok, model, out_dir):
     import torch
 
     markers = resolve_markers(spec["probe_sets"]["refusal_markers"])
+    markers, score_fn = session_grader(spec)
     n_probes = spec["probe_sets"]["n_probes"]
     ps = spec["probe_sets"]
     harmful = resolve_probe_set(ps["harmful"])[:n_probes]
@@ -284,10 +340,10 @@ def run_baseline_and_hook_probes(spec, tok, model, out_dir):
     print("[4/5] baseline probes (clean model)", flush=True)
     base_h = run_probes(tok, model, harmful, tag="base-harm",
                         max_new=spec["decoding"]["max_new_tokens"],
-                        markers=markers)
+                        markers=markers, score_fn=score_fn)
     base_b = run_probes(tok, model, harmless, tag="base-harmless",
                         max_new=spec["decoding"]["max_new_tokens"],
-                        markers=markers)
+                        markers=markers, score_fn=score_fn)
     base_sum = summarize(base_h, base_b)
     json.dump({"harmful": base_h, "harmless": base_b},
               open(os.path.join(out_dir, "probes_baseline.json"), "w"),
@@ -313,10 +369,10 @@ def run_baseline_and_hook_probes(spec, tok, model, out_dir):
         print(f"      hook scope=selected (L{L_star})", flush=True)
     hook_h = run_probes(tok, model, harmful, tag="hook-harm",
                         max_new=spec["decoding"]["max_new_tokens"],
-                        markers=markers)
+                        markers=markers, score_fn=score_fn)
     hook_b = run_probes(tok, model, harmless, tag="hook-harmless",
                         max_new=spec["decoding"]["max_new_tokens"],
-                        markers=markers)
+                        markers=markers, score_fn=score_fn)
     hook.detach()
     assert hook.calls > 0, "hook never fired - ablation invalid"
     hook_sum = summarize(hook_h, hook_b)

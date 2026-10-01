@@ -165,12 +165,15 @@ def run_variant(name, edit_fn, out_dir, expect_tied, verify_fn, spec,
     n_probes = spec["probe_sets"]["n_probes"]
     max_new = spec["decoding"]["max_new_tokens"]
     from abliteration_engine.data import resolve_probe_set
+    markers, score_fn = core.session_grader(spec)
     harmful = resolve_probe_set(spec["probe_sets"]["harmful"])[:n_probes]
     harmless = resolve_probe_set(spec["probe_sets"]["harmless"])[:n_probes]
     r_h = core.run_probes(tok_r, model_r, harmful, tag=f"{name}-harm",
-                          max_new=max_new)
+                          max_new=max_new, markers=markers,
+                          score_fn=score_fn)
     r_b = core.run_probes(tok_r, model_r, harmless, tag=f"{name}-harmless",
-                          max_new=max_new)
+                          max_new=max_new, markers=markers,
+                          score_fn=score_fn)
     s = core.summarize(r_h, r_b)
     s["edit_info"] = edit_info
     s["on_disk_verify"] = disk

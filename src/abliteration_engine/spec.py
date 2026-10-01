@@ -121,6 +121,16 @@ def load_spec(path):
         raise SpecError(f"hooks.scope must be 'selected' or 'all', "
                         f"got {scope!r}")
 
+    # marker_mode (FTT-20, grader-under-study): v1 = frozen substring
+    # grader (Run-001 parity contract); v2 = refusal_score_v2 (word
+    # boundary + offer-tail exception). Validated only, never injected —
+    # absent means v1 and keeps normalized spec hashes stable for
+    # existing specs (hooks-block precedent).
+    mm = (ps.get("marker_mode") or "v1") if isinstance(ps, dict) else "v1"
+    if mm not in ("v1", "v2"):
+        raise SpecError(f"probe_sets.marker_mode must be 'v1' or 'v2', "
+                        f"got {mm!r}")
+
     out = dict(raw)
     if hooks:
         out["hooks"] = {"scope": scope}
