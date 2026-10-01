@@ -22,6 +22,7 @@
 #      BANKED=<s5 pulled artifacts dir>.
 set -euo pipefail
 S="${S:-ftt20-rs2}"
+GPU="${GPU:-T4}"           # A (T4) or A+C (A100) — lease is fit-proportional either way
 BUNDLE="${BUNDLE:-/root/research/abliteration/bundles/eng_run_002_qwen2.5-1.5b_20260930T222244Z.tar.gz}"
 BANKED="${BANKED:-/root/research/abliteration/qwen2.5-0.5b-002/eng_run002_pull_s5}"
 LOG=/root/research/abliteration/reapersplit.log
@@ -37,7 +38,7 @@ SN="${S}-${N}"
 OUT_ROOT="${OUT_ROOT:-/root/research/abliteration/qwen2.5-0.5b-002/reapersplit}"
 
 log "=== STAGE $STAGE session $SN ==="
-$COLAB new -s "$SN" --gpu T4 2>&1 | tee -a "$LOG"
+$COLAB new -s "$SN" --gpu "$GPU" 2>&1 | tee -a "$LOG"
 
 # stage banked artifacts: tar banked probe artifacts locally, upload, extract
 T=$(mktemp /tmp/banked.XXXX.tar)
