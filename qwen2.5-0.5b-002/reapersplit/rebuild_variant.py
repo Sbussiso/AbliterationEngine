@@ -32,7 +32,13 @@ OUT = "/content/eng_run_002_qwen2.5-1.5b"
 
 def main():
     spec = load_spec("/content/specs/qwen25_1p5b_run002_resume.yaml")
-    core.ensure_markers(spec)
+    # markers global is populated by from_spec() in this engine vintage
+    # (0.1.0 pre-ensure_markers); this rebuild never calls run_probes, so
+    # markers are irrelevant here — defensive resolve only, no engine edit
+    try:
+        core.ensure_markers(spec)
+    except AttributeError:
+        core.REFUSAL_MARKERS = None  # not needed for edit+apply+save
     import torch
     from abliteration_engine.edits import (
         orthogonalize_layer_output, orthogonalize_lm_head,
