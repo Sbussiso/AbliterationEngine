@@ -157,8 +157,13 @@ PYEOF
     break
   fi
   if [ "$ALIVE" = "no" ]; then
-    log "Runner gone without marker on $SN (iter $i) — inspect"
-    notify "REAPERSPLIT: runner died without marker ($SN)" "Inspection needed; pulls so far banked."
+    log "Runner died without marker on $SN (iter $i) — bank forensics (partial probes + log) then exit"
+    notify "REAPERSPLIT: runner died without marker ($SN)" "Banking what streamed before inspecting; partial data pulled."
+    mkdir -p "$OUT_ROOT/$SN"; chmod 777 "$OUT_ROOT/$SN" 2>/dev/null || true
+    $COLAB download -s "$SN" /content/phase_out.log "$OUT_ROOT/$SN/phase_out_partial.log" >>/tmp/rs_dl.log 2>&1 && log "pulled phase_out_partial.log" || true
+    for f in probes_wd_ML_BN.json probes_wd_ML.json run_config.json; do
+      $COLAB download -s "$SN" "/content/eng_run_002_qwen2.5-1.5b/$f" "$OUT_ROOT/$SN/$f" >>/tmp/rs_dl.log 2>&1 && log "pulled partial $f (may be incomplete)" || true
+    done
     exit 1
   fi
 done
