@@ -68,7 +68,7 @@
 | wd_BN | 53/64 (82.8% s5-file) / 54/64 (s2-T4 stream aggregate, unverifiable) | 57/64 | FAIL >0.25 | ±1 cross-instance aggregate discrepancy, i7-class prime suspect unproven |
 | wd_ML | 27/64 (42.2%) | 64/64 (100%) | FAIL >0.25 (best persistent) | eng_run002_pull_s5 (complete both splits) |
 | wd_ML_BN | 22/64 (34.4%) | 56/64 (87.5%) | FAIL >0.25 (gate passed benign side; refusal over bar) | rs2-1-forensics (byte-complete, sha 87b90ce8d1a10fe4) — LADDER_DONE-matched |
-| MMLU (selected) | base 0.6012 / variant [running rs2-3] | Δ ≤ 3pp gate | [PENDING] | base anchor: cef56b7 (n=14,042) + rs2-3 re-verify |
+| MMLU (wd_ML_BN) | base 60.10% / variant 59.99% (Δ −0.11pp, stderr 0.0039 both) | Δ ≤ 3pp gate | **PASS (30× margin)** | rs2-4-mmlu/mmlu_summary.json (mirror cef56b7 base anchor) |
 
 ### Figures (programmatic, from recorded artifacts only — per user doctrine)
 - F1: ladder refusal-rate by variant (bar, baseline→hook→wd_B→wd_BN→wd_ML→wd_ML_BN + gate line at 25%).
