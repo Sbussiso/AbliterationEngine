@@ -49,9 +49,17 @@ def main():
     k_combo = sel["k_layers_combo"]
 
     dirs_all = {}
-    npz = __import__("numpy").load(
+    npzw = __import__("numpy").load(
         os.path.join(OUT, "layer_directions.npz"))
-    dirs_all = {int(k): npz[k] for k in npz.files}
+    if "directions" in npzw.files:
+        D = npzw["directions"]
+        dl = npzw["decoder_layers"] if "decoder_layers" in npzw.files \
+            else None
+        for i, l in enumerate((dl.tolist() if dl is not None
+                               else range(D.shape[0]))):
+            dirs_all[int(l)] = D[i]
+    else:
+        dirs_all = {int(k): npzw[k] for k in npzw.files}
     dir_B = torch.from_numpy(
         __import__("numpy").load(
             os.path.join(OUT, "refusal_direction_B.npy"))).float()
