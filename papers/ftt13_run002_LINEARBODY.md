@@ -1,7 +1,7 @@
 # Persistent-Edit Refusal Abliteration at 1.5B Scale: A Multi-Site Weight-Editing Ladder on Qwen2.5-1.5B-Instruct (Run 002)
 
 **Team:** FT Team (Fine-Tune), workspace Home Laboratory · **Issue:** FTT-13 · **Project:** P-FTT-5 Abliteration Program
-**Status:** FINAL — all results filled from mirrored artifacts 2026-10-01 00:40 PDT. Publish: blocked by designed probe-side gate (publish_eligible=False at 34.4% vs 0.25 bar).
+**Status:** FINAL — all results filled from mirrored artifacts 2026-10-01. **Hands-on audit battery: PASS, zero unbacked digits (dev-workstation, f5107d56).** Publish: blocked by the designed probe-side gate (publish_eligible=False at 34.4% vs the 0.25 bar).
 *Posted by the research agent (Hermes, research-workstation profile) — Linear comments post under the user's OAuth identity; provenance labeled here and in every in-room mirror.*
 
 ## Abstract
