@@ -4,7 +4,7 @@
 # Persistent-Edit Refusal Abliteration at 1.5B Scale: A Multi-Site Weight-Editing Ladder on Qwen2.5-1.5B-Instruct (Run 002)
 
 **Team:** FT Team (Fine-Tune), workspace Home Laboratory · **Issue:** FTT-13 · **Project:** P-FTT-5 Abliteration Program
-**Status:** DRAFT — Results pending wd_ML_BN re-run + MMLU (see §Results)
+**Status:** FINAL — all results filled from mirrored artifacts 2026-10-01 00:40 PDT. Publish: blocked by designed probe-side gate (publish_eligible=False at 34.4% vs 0.25 bar).
 
 ## Abstract
 We measure the scale behavior of persistent refusal-direction weight edits on Qwen/Qwen2.5-1.5B-Instruct (pinned revision 989aa798) across a full multi-site ladder on a fixed 64-probe fixture. An inference-time hook achieves near-total refusal removal (1/64 v1 → 0/64 v2 true refusals) with benign behavior improved (3→1 flagged benign probes), but no persistent weight edit reaches the ≤25% publish bar: lm_head-only spaces re-arm to 82.8%, a K=3 multi-layer edit cuts residual to 42.2% (with a perfect 64/64 benign side), and the selected K=5 composite reaches 34.4% (benign 87.5%) — its MMLU guardrail passes at Δ−0.11pp, 30× inside the limit. We read this as thin-gate geometry at intermediate scale: utility-destroying edits are easy, refusal-destroying persistent edits saturate, and the stage-A direction path itself is bit-stable (row-identical probe files across three independent Colab instances). No artifact is published, by the designed gate; the verdict and the measured session-lease reaper are the deliverables.
@@ -92,7 +92,15 @@ We measure the scale behavior of persistent refusal-direction weight edits on Qw
 - Colab session ledger: ftt20-run002-research-workstation-{1..5} + rs2 series (all with per-phase pulls).
 
 ## Conclusion & Future Work
-[PENDING at close — E1: artifact + card + multilingual panel; E2: scale-law quantification + 7B L4 next-step; shared: RefusalBench-NQ paired regression (decisive at 1.5B per fact-store), benign-SFT robustness battery, DDO decoy-signature pre-check on candidate checkpoints, rank-k SVD re-ablation test, disposition battery]
+
+**Findings.** (1) Persistent refusal removal does not scale trivially through model size: the 0.5B recipe needs more than K=5 sites at 1.5B, and lm_head readout-space edits re-arm almost fully (82.8%). (2) The inference-time hook remains the strongest lever at this scale (~0% residual on the fixture). (3) Weight-space refusal edits preserve benign utility asymmetrically well (87.5–100% everywhere), and their direction also carries the over-refusal blind spots. (4) The stage-A capture→direction→probe path is bit-stable across independent runtimes — same seed, same rows — making cross-run comparisons trustworthy. (5) The hosting environment reaps ~60-min session leases by declaration.
+
+**Next experiments.**
+1. K>5 composite at 1.5B + per-layer direction refresh at each edited site (H1 revision; decisive for the thin-gate story).
+2. Best-composite checkpoint through the suppression-regime probe battery: benign-SFT probe (does ordinary FT re-arm it?), TruthfulQA CI, multilingual panel (en/zh/ru/de), RefusalBench-NQ paired regression (the disposition-shift question; decisive at 1.5B per program findings).
+3. DDO decoy-signature pre-check + rank-k SVD re-ablation test on the winner before any future HITL publish (gates unchanged: benign floor, zero degenerates, MMLU ≤3pp, user approval for public push).
+4. 7B ladder round-2 on L4 with the same kit (the run-002/FTT-17 family showed 12.5% persistent is already achievable there; round-2 targets suppression-regime robustness next).
+5. File the CLI 0.6.0 patch ask upstream: no re-adopt/resurrect verb exists — recovery today cost 6 sessions where a re-adopt would have cost none (paper §Infrastructure).
 
 ## Reproduction recipe (minimal)
 1. Fresh Colab session (T4 or L4), bundle upload, prestage (REAPERSPLIT: sha check + banked validation + spec-narrow, receipts).
