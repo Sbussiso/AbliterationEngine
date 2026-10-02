@@ -337,7 +337,8 @@ def test_card_names_ara_method_for_ara_variant(tmp_path, monkeypatch):
               "benign_preserved": 1.0, "degenerate_total": 0}]))
     rc, vdir = _publish(
         tmp_path, monkeypatch, artifacts_mutate=to_ara,
-        cfg_mutate=lambda c: c.update(ladder_ara={"rank": 8}))
+        cfg_mutate=lambda c: c.update(ladder_ara={"rank": 8}),
+        mmlu_mutate=lambda m: m.update(variant="ara_8"))
     assert rc == 0
     card = (vdir / "README.md").read_text()
     assert "produced with Arbitrary-Rank Ablation (ARA, Weidmann 2026)" in card

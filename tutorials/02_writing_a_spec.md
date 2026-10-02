@@ -218,6 +218,7 @@ publish:
   license: apache-2.0
   card_marker: "abliterated by the sbussiso lab research agent"
   # card_byline: "lab agent profile"   # optional: shown in () after the marker
+  # card_charts: false                 # optional: text-only card (default: charts on)
 hitl:
   after_selection: true    # pause after picking the winner: your call
   before_publish: true     # pause before any upload: your call

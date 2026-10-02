@@ -92,7 +92,19 @@ gate. Fix the run (or the variant), don't the gate.
 ## Step 2 — The model card writes itself
 
 Every number on the Hugging Face card is generated from your result
-files: probe percentages (baseline vs edited), benign-preservation,
+files, and so are its three charts: refusal by condition (with the publish
+gate marked), benign answers by condition (with the gate floor), and the
+MMLU before/after against the guardrail limit. They're drawn from the same
+files as the tables, saved into `charts/` next to the weights, and uploaded
+with them. Each chart's text description carries the numbers too, so the
+card still reads correctly to screen readers and where images don't load.
+
+> Charts need matplotlib. Colab already has it. On a laptop, use
+> `uv sync --extra dev` or `pip install '.[charts]'`. Without it, `publish`
+> still works and ships a text-only card (it prints a note). To leave the
+> charts off on purpose, add `card_charts: false` under `publish:`.
+
+The card text itself covers: probe percentages (baseline vs edited), benign-preservation,
 degenerate counts, MMLU before/after, which layers were edited and how,
 plus the model lineage (which base model, which pinned version) and a
 plain-language safety note + the spec's `card_marker` line (and the

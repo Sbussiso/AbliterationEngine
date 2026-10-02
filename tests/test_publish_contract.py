@@ -36,7 +36,12 @@ def _spec_file(tmp_path, monkeypatch, **publish_overrides):
     return str(p)
 
 
-def _fake_hub(tmp_path, files=("README.md", "config.json")):
+CHART_FILES = ("charts/refusal_by_condition.png",
+               "charts/benign_by_condition.png", "charts/mmlu_guardrail.png")
+
+
+def _fake_hub(tmp_path, files=("README.md", "config.json"), charts=True):
+    files = tuple(files) + (CHART_FILES if charts else ())
     class _API:
         def whoami(self):
             return {"name": "sbussiso"}
@@ -95,8 +100,9 @@ def _fake_run_artifacts(out_dir, tmp_path):
         (out_dir / f"probes_{name}.json").write_text(json.dumps(probes))
     mmlu = {"mmlu_base_pct": 35.2, "mmlu_variant_pct": 34.1,
             "mmlu_delta_pp": 1.1, "guardrail_30pp": True,
-            "base": {"acc_stderr": 0.01},
-            "variant_model": {"acc_stderr": 0.01}}
+            "guardrail_loss_pp_limit": 3.0, "variant": "wd_B",
+            "base": {"acc": 0.352, "acc_stderr": 0.01},
+            "variant_model": {"acc": 0.341, "acc_stderr": 0.01}}
     mmlu_p = tmp_path / "mmlu_summary.json"
     mmlu_p.write_text(json.dumps(mmlu))
     vdir = tmp_path / "v"
