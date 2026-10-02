@@ -1,0 +1,20 @@
+{
+  "repro_sha256": "ae691de6a308bd57a8d6d672548abb726df2bc26466904716da867928bdd12f4",
+  "expected": "ae691de6a308bd57a8d6d672548abb726df2bc26466904716da867928bdd12f4",
+  "match": true,
+  "method": "repro_rebuild.py (instance #3 recipe, engine @ cbfb64c==69c79af src unchanged, banks sha16: dir_B 7dc4e48e8818f2b1, npz bf393d7c0dea7b98), CPU fp16, chunked sha re-read",
+  "edit_resids_from_log": {
+    "L19_o_proj": 6.962130282772705e-05,
+    "L19_down_proj": 8.323063957504928e-05,
+    "L18_o_proj": 4.954344331054017e-05,
+    "L18_down_proj": 6.752516492269933e-05,
+    "L16_o_proj": 5.4782809456810355e-05,
+    "L16_down_proj": 6.810835475334898e-05,
+    "L17_o_proj": 8.512049680575728e-05,
+    "L17_down_proj": 7.958314381539822e-05,
+    "L20_o_proj": 5.3154610213823617e-05,
+    "L20_down_proj": 6.87682768329978e-05
+  },
+  "note": "process OOM-killed post-save (earlyoom) during in-RAM full read; file intact, sha re-computed chunked; tokenizer_config 1-byte padding-flag diff vs publish staging (repro script skips pad_token normalization; weights unaffected)",
+  "card_dir_B_sha16_resolution": "f2210808d8dd9221 = sha256(dir_B arr.tobytes()) raw-value hash of eng_run002_pull_s5/refusal_direction_B.npy \u2014 verified exact"
+}
