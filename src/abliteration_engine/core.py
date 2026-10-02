@@ -437,6 +437,11 @@ def write_run_config(spec, out_dir, extra=None):
         "gates": spec["gates"],
         "hooks": (spec.get("hooks") or {"scope": "selected"}),
         "ladder_variants": spec["ladder"]["variants"],
+        # FTT-28: effective ARA config when an ara_<rank> variant is in the
+        # ladder; null otherwise (always-present key mirrors hooks.scope).
+        "ladder_ara": (spec["ladder"].get("ara")
+                       if any(str(v).startswith("ara_")
+                              for v in spec["ladder"]["variants"]) else None),
         "versions": {"python": platform.python_version(),
                      "torch": (torch.__version__ if
                                (torch := sys.modules.get("torch")) else None)},

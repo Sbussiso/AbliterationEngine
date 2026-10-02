@@ -110,10 +110,28 @@ def publish_phase(spec_path, variant_dir, mmlu_json, assume_publish=False):
                   f"against its own layer direction"),
         "wd_ML_BN": (f"multi-layer row-space orth at top-{len(k_combo)} "
                      f"layers {k_combo} + lm_head orth + final-norm orth"),
-    }[variant]
+    }
+    if variant.startswith("ara_"):
+        acfg = cfg.get("ladder_ara") or {}
+        n_ara_layers = len(
+            ((sel.get("ladder_ara") or {}).get("layers")) or
+            acfg.get("layers") or [])
+        edit_desc[variant] = (
+            f"Arbitrary-Rank Ablation (ARA, Weidmann 2026): rank-{acfg.get('rank')} "
+            f"LoRA (B@A) fit on o_proj/down_proj at "
+            f"{n_ara_layers or 'all'} decoder layer(s) {((sel.get('ladder_ara') or {}).get('layers')) or acfg.get('layers') or '0..' }, "
+            f"L-BFGS (strong-Wolfe) on the ARA objective — preserve-good MSE "
+            f"on harmless optimizer prompts + KNN-mean steer-bad pull/push "
+            f"(neighbor k={acfg.get('neighbor_count')}, w_pg="
+            f"{acfg.get('preserve_good_weight')}, w_sb={acfg.get('steer_bad_weight')}, "
+            f"w_oc={acfg.get('overcorrect_weight')}), row magnitudes "
+            f"{'preserved' if acfg.get('preserve_row_magnitudes', True) else 'NOT preserved'}; "
+            f"optimizer pools {acfg.get('good')}/{acfg.get('bad')} "
+            f"(disjoint from the eval probes)")
 
     ladder_rows = []
-    for name in ("wd_B", "wd_BN", "wd_ML", "wd_ML_BN"):
+    ara_names = [v for v in cands if str(v).startswith("ara_")]
+    for name in ("wd_B", "wd_BN", "wd_ML", "wd_ML_BN", *ara_names):
         if name in cands:
             c = cands[name]
             ladder_rows.append(

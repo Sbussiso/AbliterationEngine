@@ -25,6 +25,11 @@ _LADDER_ALL = ["wd_B", "wd_BN", "wd_ML", "wd_ML_BN"]
 _DECODING_STRATEGIES = ("greedy",)
 
 
+def _is_ara_variant(name):
+    return (isinstance(name, str) and name.startswith("ara_")
+            and name[4:].isdigit() and int(name[4:]) >= 1)
+
+
 def load_spec(path):
     """Load + validate a YAML run spec. Returns the normalized dict.
 
@@ -83,8 +88,15 @@ def load_spec(path):
 
     lad = raw["ladder"]
     variants = lad.get("variants", _LADDER_ALL)
-    if not set(variants) <= set(_LADDER_ALL):
-        raise SpecError(f"ladder.variants must be a subset of {_LADDER_ALL}")
+    # v1 amendment (FTT-28, 2026-10-02): `ara_<rank>` variants — the ARA
+    # optimizer as a persistent-edit variant class (src/abliteration_engine/
+    # ara.py). Same status as the built-in wd_* names.
+    bad = [v for v in variants if v not in _LADDER_ALL
+           and not _is_ara_variant(v)]
+    if bad:
+        raise SpecError(f"ladder.variants must be a subset of {_LADDER_ALL}"
+                        " (+ ara_<rank>), got "
+                        f"{bad}")
     # NOTE (v1 amendment 2026-09-30): empty variants = hook-only
     # characterization run (Run 000 semantics): stage 5 skipped, no
     # selection.json, publish stage gated off. Optional 'hooks' block
@@ -92,6 +104,26 @@ def load_spec(path):
     if "wd_ML_BN" in variants and "wd_ML" not in variants:
         raise SpecError("ladder: wd_ML_BN presumes wd_ML (top-K layers come "
                         "from the coherence scan)")
+    # v1 amendment (FTT-28): validate ladder.ara against the requested
+    # ara_<rank> variant(s). Fail here (CPU, no model) — a spec that plans
+    # green must run green. Never default-injected: absent ladder.ara with
+    # no ara_* variant leaves the normalized spec byte-stable (Run-001
+    # parity contract).
+    if any(_is_ara_variant(v) for v in variants) or lad.get("ara"):
+        from .ara import resolve_ara_config
+
+        try:
+            name, cfg = resolve_ara_config(lad)
+        except ValueError as e:
+            raise SpecError(f"ladder.ara: {e}") from e
+        if name is None:
+            raise SpecError("ladder.ara set but ladder.variants has no "
+                            "ara_<rank> variant")
+        lad["ara"] = cfg  # normalized config (injected, mirrors k_primary)
+        n_ara = [v for v in variants if _is_ara_variant(v)]
+        if len(n_ara) > 1:
+            raise SpecError("multiple ara_<rank> variants in one ladder is "
+                            "unsupported (one ARA config per ladder)")
     if int(lad.get("k_primary", 3)) < 1 or int(lad.get("k_combo", 5)) < 1:
         raise SpecError("ladder k_primary/k_combo must be >= 1")
     # day-2 lesson (first full-GPU ladder run, Run 002): defaults were

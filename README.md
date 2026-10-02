@@ -66,7 +66,7 @@ the opposite:
 | **capture** | activations recorded on harmful vs harmless prompts | yes |
 | **direction scan** | every layer × position scored; the strongest coherent direction is picked | yes |
 | **stage A probes** | baseline vs hook-ablated behavior compared (runtime-only, nothing saved) | yes |
-| **stage B ladder** | persistent weight-edits (`wd_B / wd_BN / wd_ML / wd_ML_BN …`), each: edit → save → reload → verify → probe | yes |
+| **stage B ladder** | persistent weight-edits (`wd_B / wd_BN / wd_ML / wd_ML_BN`) + ARA optimizer variants (`ara_<rank>`, Weidmann 2026), each: edit → save → reload → verify → probe | yes |
 | **selection gate** | benign-preservation floor met, zero degenerates | — |
 | **MMLU guardrail** | knowledge loss ≤ 3pp, else STOP | yes |
 | **publish** | all gates verified → Hugging Face push + model card | no |
@@ -127,12 +127,25 @@ The built-in probe sets and refusal markers ship verbatim from v2, so old
 and new run configs stay behaviorally identical — that's what makes the
 cross-version parity contract mean something.
 
+Beyond the four built-in `wd_*` edits, the ladder accepts **ARA variants**
+(`ara_<rank>`, Arbitrary-Rank Ablation, Weidmann 2026 — the method behind
+Heretic's default modifier): a rank-k LoRA (`B@A`) fit on
+`o_proj`/`down_proj` by L-BFGS, minimizing a preserve-good MSE on harmless
+optimizer prompts plus a KNN-mean steer-bad pull/push, with row magnitudes
+preserved. Parameters come from an optional `ladder.ara` block (defaults =
+the reference settings); add `- ara_50` to `variants` to include it. The
+optimizer pools ship as builtin sets (`builtin:ara_good` / `builtin:ara_bad`,
+400 prompts each) and are **disjoint from the eval probes by construction**
+— the optimizer never tunes on its own evaluation set.
+
 ## What's in the box
 
 ```
-src/abliteration_engine/   ← the package (spec/data/core/edits/pipeline/
-                             mmlu/publish/parity/scoring_v2/bundle/cli)
-src/…/sets/                ← builtin probe sets + refusal markers
+src/abliteration_engine/   ← the package (spec/data/core/edits/ara/
+                             pipeline/mmlu/publish/parity/scoring_v2/
+                             bundle/cli)
+src/…/sets/                ← builtin probe sets, refusal markers, ARA
+                             optimizer pools (eval-disjoint)
 specs/                     ← shipped run specs (validated by CI)
 tests/                     ← contract tests, all CPU-only, run in CI
 tests/fixtures/            ← the committed parity anchors the CI contract reads
@@ -188,6 +201,9 @@ measured outcomes for the program so far:
 - Arditi et al. 2024, *Refusal in Language Models Is Mediated by a Single
   Direction* — the core method.
 - Wei et al. 2023 — context: why refusals exist to begin with.
+- Weidmann 2026, *Arbitrary-Rank Ablation (ARA)* — implemented as the
+  `ara_<rank>` ladder-variant class
+  ([p-e-w/heretic](https://github.com/p-e-w/heretic), PR #211).
 
 ## Status
 
@@ -195,4 +211,7 @@ Engine v3 runs real patients end-to-end with CI-gated packaging and two
 published models. **Run 002 (1.5B) is complete** — the best persistent edit
 cut harmful refusals 98.4% → 34.4%, above the designed ≤25% publish bar, so
 the measured artifact ships hub-private only.
-Open: optional deeper-ladder round at 1.5B.
+
+Open: the round-2 arm comparison (ARA vs `wd_ML` at 1.5B, same instrument,
+FTT-28) is staged as `specs/qwen25_1p5b_ara_round2.yaml` — CI-validated,
+GPU phase deferred.

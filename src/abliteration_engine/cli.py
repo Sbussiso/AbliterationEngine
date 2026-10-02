@@ -50,6 +50,13 @@ def plan(spec_path):
         else {"note": "empty ladder = hook-only characterization "
                       "(stage 5 + publish gated off)"}
     print(f"ladder: {spec['ladder']['variants']} {lad_keys}")
+    if spec["ladder"].get("ara"):
+        a = spec["ladder"]["ara"]
+        print(f"  ARA: rank={a['rank']} layers={a.get('layers') or 'ALL'} "
+              f"w_pg={a['preserve_good_weight']} w_sb={a['steer_bad_weight']} "
+              f"w_oc={a['overcorrect_weight']} k={a['neighbor_count']} "
+              f"steps={a['steps']}x{a['max_iter']} lr={a['lr']} "
+              f"pools {a['good']}/{a['bad']}")
     print(f"gates: {spec['gates']}")
     pub = spec.get("publish") or {}
     if pub:

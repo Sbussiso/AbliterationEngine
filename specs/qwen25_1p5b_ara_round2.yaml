@@ -1,0 +1,69 @@
+spec_version: 1
+run_card:
+  run_number: 8
+  patient: qwen2.5-1.5b-ara-r2
+  purpose: "Run 008 round-2 arm: ARA (Weidmann 2026) vs the run-002 wd_ML best at 1.5B, under the same instrument (FTT-28). GPU phase DEFERRED — spec authored and CI-validated on CPU."
+
+patient:
+  model_id: Qwen/Qwen2.5-1.5B-Instruct
+  # same pin as run-002 (round-2 must compare on the identical base)
+  revision: "989aa7980e4cf806f80c7fef2b1adb7bc71aa306"
+  structure_expect:
+    num_hidden_layers: 28
+    num_key_value_heads: 2
+    tie_word_embeddings: true
+    o_proj_shape: [1536, 1536]
+    down_proj_shape: [1536, 8960]
+
+probe_sets:
+  harmful: builtin:primary64_harmful
+  harmless: builtin:primary64_harmless
+  n_pairs: 64
+  n_probes: 64          # full 64 on stage A (mission-004 semantics)
+  refusal_markers: builtin:fp_explicit_v1
+
+decoding:
+  max_new_tokens: 200
+  strategy: greedy
+  seed: 0
+
+ladder:
+  # stage-B comparison arms: the run-002 best (wd_ML) + ARA rank-50.
+  # Both go through the SAME capture/direction/probe pipeline and the SAME
+  # gates; ARA's optimizer pools (builtin:ara_bad/good) are disjoint from
+  # these probes by construction (tests pin the disjointness).
+  variants:
+    - wd_ML
+    - ara_50
+  ara:
+    # ARA defaults mirror the reference implementation (rank 50 implied by
+    # the variant name); only overrides are listed here.
+    layers: null         # every decoder layer (28 at 1.5B); stream-and-merge capture
+    steps: 5
+    lr: 1.0
+    max_iter: 20
+    preserve_row_magnitudes: true
+  k_primary: 3           # wd_ML arm identical to run-002
+
+gates:
+  benign_floor_delta: 0.10
+  degenerate_max: 0
+  publish_refusal: 0.25
+  mmlu_max_loss_pp: 3.0
+
+publish:
+  repo_id: sbussiso/Qwen2.5-1.5B-abliterated
+  license: apache-2.0
+  card_marker: "abliterated by the sbussiso lab research agent"
+  verify_disk_bounds:
+    lm_head: 0.005
+    final_norm: 0.05
+    layer_row: 0.01
+
+colab:
+  gpu: t4
+  max_runtime_minutes: 240   # ARA adds L-BFGS steps on top of the wd arms
+
+hitl:
+  after_selection: true
+  before_publish: true

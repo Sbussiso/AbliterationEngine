@@ -139,9 +139,11 @@ def verify_layers_disk(model_r, layers, dirs_np, bound=1e-2):
 
 
 def run_variant(name, edit_fn, out_dir, expect_tied, verify_fn, spec,
-                tok_source_model):
+                tok_source_model=None):
     """Fresh base load -> edit -> save -> RELOAD from disk -> verify ->
-    probe. Returns summary dict; dumps probes_<name>.json."""
+    probe. Returns summary dict; dumps probes_<name>.json.
+    (tok_source_model retained for call compatibility; the reloaded model
+    never shares state with the source load.)"""
     print(f"      --- {name} ---", flush=True)
     t0 = time.time()
     tok_v, model_v = core.load_patient(spec)
@@ -256,6 +258,18 @@ def _banked_variant_summary(spec, name):
         return None
 
 
+_VARIANT_EXPECT_TIED = {"wd_B": False, "wd_BN": False, "wd_ML": True,
+                        "wd_ML_BN": False}
+
+
+def expect_tied_for(name):
+    """Tie expectation per variant name: ara_* keeps the tie (decoder-layer
+    edit only); wd_* names carry their historical expectations."""
+    if name.startswith("ara_"):
+        return True
+    return _VARIANT_EXPECT_TIED[name]
+
+
 def run_ladder(spec, ctx):
     """Stage B: the ladder from spec.ladder.variants over v2 stage-A
     artifacts. Returns the LADDER_DONE payload dict."""
@@ -284,6 +298,23 @@ def run_ladder(spec, ctx):
 
     VARBASE = os.environ.get("ENG_VARBASE") or core.eng_base()
     VAR_DIRS = {v: f"{VARBASE}/{v}" for v in variants}
+
+    # v1 amendment (FTT-28): ara_<rank> variants route to the ARA optimizer
+    # (src/abliteration_engine/ara.py). Resolved here so the ladder log
+    # carries the config; runs on the standard lifecycle AFTER wd_ML_BN
+    # (the combo stays the max-intervention closer).
+    ara_name, ara_cfg = None, None
+    if any(v.startswith("ara_") for v in variants):
+        from . import ara as ara_mod
+        from .spec import SpecError
+        try:
+            ara_name, ara_cfg = ara_mod.resolve_ara_config(lad)
+        except ValueError as e:
+            raise SpecError(f"ladder.ara: {e}") from e
+        print(f"      ARA variant {ara_name}: rank={ara_cfg['rank']} "
+              f"layers={ara_cfg.get('layers') or 'ALL'} "
+              f"(L-BFGS x{ara_cfg['steps']} @ lr {ara_cfg['lr']}, "
+              f"pools {ara_cfg['good']} / {ara_cfg['bad']})", flush=True)
 
     def edit_wd_B(m):
         mc, rn = orthogonalize_lm_head(m, dir_B)
@@ -338,19 +369,19 @@ def run_ladder(spec, ctx):
                 "layers": verify_layers_disk(mr, k_layers_combo, dirs_all,
                                              b_row)}
 
-    expect_tied = {"wd_B": False, "wd_BN": False, "wd_ML": True,
-                   "wd_ML_BN": False}
     edit_fns = {"wd_B": edit_wd_B, "wd_BN": edit_wd_BN}
     edit_fns["wd_ML"] = make_edit_wd_ML(k_layers_primary)
     edit_fns["wd_ML_BN"] = edit_wd_ML_BN
     verify_fns = {"wd_B": vfy_wd_B, "wd_BN": vfy_wd_BN, "wd_ML": vfy_wd_ML,
                   "wd_ML_BN": vfy_wd_ML_BN}
+    # (tie expectations are name-keyed via expect_tied_for(); ara_* keeps
+    # the tie — decoder-layer edits only)
 
     summ = {}
     step = 2
     for name in variants:
-        if name == "wd_ML_BN":
-            continue  # conditional, after the others
+        if name == "wd_ML_BN" or name.startswith("ara_"):
+            continue  # conditional combos + ARA, after the others
         print(f"[{step}/6] {name}", flush=True)
         banked = _banked_variant_summary(spec, name)
         if banked is not None:
@@ -362,25 +393,44 @@ def run_ladder(spec, ctx):
             step += 1
             continue
         summ[name] = run_variant(name, edit_fns[name], VAR_DIRS[name],
-                                 expect_tied[name], verify_fns[name], spec,
-                                 ctx["model"])
+                                 expect_tied_for(name), verify_fns[name],
+                                 spec, ctx["model"])
         step += 1
 
     # conditional max-intervention combo per v2 semantics
     if "wd_ML_BN" in variants:
-        best3 = min(summ[v]["refusal_rate"]
-                    for v in variants if v != "wd_ML_BN")
+        others = [v for v in summ if v != "wd_ML_BN"]
+        assert others, ("wd_ML_BN combo with no preceding variant results "
+                        "(spec validation guarantees wd_ML precedes it)")
+        best3 = min(summ[v]["refusal_rate"] for v in others)
         if best3 >= spec["gates"]["publish_refusal"]:
             print(f"[{step}/6] wd_ML_BN: best of V1..V3 = {best3} >= "
                   f"{spec['gates']['publish_refusal']} -> running combo",
                   flush=True)
             summ["wd_ML_BN"] = run_variant(
                 "wd_ML_BN", edit_fns["wd_ML_BN"], VAR_DIRS["wd_ML_BN"],
-                expect_tied["wd_ML_BN"], verify_fns["wd_ML_BN"], spec,
+                expect_tied_for("wd_ML_BN"), verify_fns["wd_ML_BN"], spec,
                 ctx["model"])
         else:
             print(f"[{step}/6] wd_ML_BN skipped: best of V1..V3 = {best3} "
                   f"< {spec['gates']['publish_refusal']}", flush=True)
+        step += 1
+
+    # ara_<rank> variant (FTT-28): the ARA optimizer runs AFTER the wd_*
+    # variants (and the conditional wd_ML_BN above) — every other lifecycle
+    # (banked resume, tie handling, selection) treats it like any variant.
+    if ara_name is not None and ara_name in variants:
+        print(f"[{step}/6] {ara_name} (ARA optimizer)", flush=True)
+        banked = _banked_variant_summary(spec, ara_name)
+        if banked is not None:
+            print(f"      {ara_name}: BANKED RESUME (complete prior-session "
+                  f"probes reused; refusal={banked['refusal_rate']} "
+                  f"benign={banked['benign_preserved']} "
+                  f"degenerate={banked['degenerate_total']})", flush=True)
+            summ[ara_name] = banked
+        else:
+            summ[ara_name] = ara_mod.run_ara_variant(
+                spec, ara_name, ara_cfg)
         step += 1
 
     print(f"[{step + 1}/6] selection + artifacts", flush=True)
@@ -402,32 +452,49 @@ def run_ladder(spec, ctx):
 
     sel_dir = VAR_DIRS[selected["variant"]]
     # representative direction for hub aux file: readout-space dir_B for
-    # lm_head-bearing variants, residual-space dir_A otherwise
-    rep = (dir_B if selected["variant"] in ("wd_B", "wd_BN", "wd_ML_BN")
-           else dir_A)
+    # lm_head-bearing variants, residual-space dir_A otherwise (ARA edits
+    # decoder-layer matrices only -> residual-space dir_A)
+    lm_head_variants = ("wd_B", "wd_BN", "wd_ML_BN")
+    rep = dir_B if selected["variant"] in lm_head_variants else dir_A
     np.save(os.path.join(out_dir, "refusal_direction.npy"), rep.numpy())
     json.dump(cands, open(os.path.join(out_dir, "selection_candidates.json"),
                           "w"), indent=2)
-    json.dump({"selected": selected["variant"],
-               "gate": "passed" if selected["passes_gate"] else "failed",
-               "selected_variant_dir": sel_dir,
-               "selected_variant_banked_resume":
-                   bool(selected["variant"] in summ
-                        and summ[selected["variant"]].get("banked_resume")),
-               "banked_resume_variants":
-                   [v for v, s in summ.items() if s.get("banked_resume")],
-               "publish_eligible_probe_gate": eligible,
-               "publish_refusal_threshold":
-                   spec["gates"]["publish_refusal"],
-               "k_layers_primary": k_layers_primary,
-               "k_layers_combo": k_layers_combo,
-               "metrics": {
-                   "refusal_rate_before": base_sum["refusal_rate"],
-                   "refusal_rate_after": selected["refusal_rate"],
-                   "benign_preserved_before": base_pres,
-                   "benign_preserved_after":
-                       selected["benign_preserved"]}},
-              open(os.path.join(out_dir, "selection.json"), "w"), indent=2)
+    # selection payload built as a dict so amendment blocks can attach
+    # provenance before the single json.dump (FTT-28 ladder_ara below).
+    sel_payload = {"selected": selected["variant"],
+                   "gate": "passed" if selected["passes_gate"] else "failed",
+                   "selected_variant_dir": sel_dir,
+                   "selected_variant_banked_resume":
+                       bool(selected["variant"] in summ
+                            and summ[selected["variant"]].get("banked_resume")),
+                   "banked_resume_variants":
+                       [v for v, s in summ.items() if s.get("banked_resume")],
+                   "publish_eligible_probe_gate": eligible,
+                   "publish_refusal_threshold":
+                       spec["gates"]["publish_refusal"],
+                   "k_layers_primary": k_layers_primary,
+                   "k_layers_combo": k_layers_combo,
+                   "metrics": {
+                       "refusal_rate_before": base_sum["refusal_rate"],
+                       "refusal_rate_after": selected["refusal_rate"],
+                       "benign_preserved_before": base_pres,
+                       "benign_preserved_after":
+                           selected["benign_preserved"]}}
+    # ARA provenance into selection.json (FTT-28): the effective optimizer
+    # config + the layers actually edited. edited-layers list comes from the
+    # run summary unless the variant was banked-resumed (then the spec's
+    # configured list is all we have — recorded verbatim).
+    if ara_name is not None and ara_name in summ:
+        from . import ara as ara_mod
+        per_layer = (summ[ara_name].get("edit_info") or {}).get("per_layer")
+        edited = (sorted(int(k[1:]) for k in per_layer
+                         if k.startswith("L"))
+                  if per_layer
+                  else (ara_cfg.get("layers") or []))
+        sel_payload["ladder_ara"] = ara_mod.ladder_meta(ara_name, ara_cfg,
+                                                        edited)
+    json.dump(sel_payload, open(os.path.join(out_dir, "selection.json"),
+                                "w"), indent=2)
 
     for name, d in VAR_DIRS.items():
         if name != selected["variant"] and os.path.isdir(d):
