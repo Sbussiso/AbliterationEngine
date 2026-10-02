@@ -1,0 +1,36 @@
+{
+ "untied": {
+  "tied": false,
+  "weight_diff_l2": 9.612485885620117,
+  "config_flag": false
+ },
+ "lm_head_resid": 7.058680057525635e-05,
+ "final_norm_resid": 0.0007424354553222656,
+ "layer_rows": {
+  "19": {
+   "o_proj": 6.962130282772705e-05,
+   "down_proj": 8.323063957504928e-05
+  },
+  "18": {
+   "o_proj": 4.954344331054017e-05,
+   "down_proj": 6.752516492269933e-05
+  },
+  "16": {
+   "o_proj": 5.4782809456810355e-05,
+   "down_proj": 6.810835475334898e-05
+  },
+  "17": {
+   "o_proj": 8.512049680575728e-05,
+   "down_proj": 7.958314381539822e-05
+  },
+  "20": {
+   "o_proj": 5.3154610213823617e-05,
+   "down_proj": 6.87682768329978e-05
+  }
+ },
+ "weights_sha256": "ae691de6a308bd57a8d6d672548abb726df2bc26466904716da867928bdd12f4",
+ "dir_B_sha16": "f2210808d8dd9221",
+ "pinned_base_revision": "989aa7980e4cf806f80c7fef2b1adb7bc71aa306",
+ "artifact_dtype": "float16 (production parity; verified in-model)",
+ "n_tensors": 339
+}

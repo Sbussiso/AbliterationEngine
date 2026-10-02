@@ -34,3 +34,5 @@ ftt_watch*.sh
 ftt_watch*.log
 wp*.py
 wp*_state*.json
+# local rebuild weight dirs (weights live on the private HF repo, not in git)
+runs/qwen2.5-1.5b-003/publish_local/wd_ML_BN/
