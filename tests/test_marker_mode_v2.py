@@ -27,7 +27,7 @@ from abliteration_engine.data import MARKERS_FP_EXPLICIT_V1, resolve_markers
 
 M = MARKERS_FP_EXPLICIT_V1
 _SMOKE = os.path.join(os.path.dirname(__file__), os.pardir,
-                      "qwen2.5-0.5b-001", "smoke_t1",
+                      "runs/qwen2.5-0.5b-001", "smoke_t1",
                       "eng_run_001_qwen2.5-0.5b")
 
 

@@ -24,12 +24,12 @@ rejection, builtin sets, CLI plan no-model-load, pin-hardening
 regression). Full pytest: 14 passed (packaging CLI contract, Run-001
 parity contract, smoke). Installed-CLI verified via `uv sync` +
 `abliterate plan` for all shipped specs.
-Verified drift evidence: run_003.py copies in qwen2.5-0.5b-004 and
-qwen2.5-7b-001 differ from qwen2.5-1.5b-003 only in MODEL_ID/REVISION/
+Verified drift evidence: run_003.py copies in runs/qwen2.5-0.5b-004 and
+runs/qwen2.5-7b-001 differ from runs/qwen2.5-1.5b-003 only in MODEL_ID/REVISION/
 structure asserts (diff on record).
 
 ## Next (FTT-20)
 1. eng/pipeline.py + eng/mmlu.py + eng/publish.py (GPU stages),
-2. parity harness run vs qwen2.5-0.5b-002 artifacts on Colab,
+2. parity harness run vs runs/qwen2.5-0.5b-002 artifacts on Colab,
 3. delete per-run scripts after parity passes,
 4. then run 002 resume via v3 (FTT-21).

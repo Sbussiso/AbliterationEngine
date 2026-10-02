@@ -34,23 +34,23 @@ def load(relpath):
 
 # ---- Gather per-run numbers ----
 # 0.5B Run 001 (16-probe era)
-hr001, br001 = rates(load("qwen2.5-0.5b-002/artifacts/probes_baseline.json"))
-hr001_hook, _ = rates(load("qwen2.5-0.5b-002/artifacts/probes_hook_ablated.json"))
+hr001, br001 = rates(load("runs/qwen2.5-0.5b-002/artifacts/probes_baseline.json"))
+hr001_hook, _ = rates(load("runs/qwen2.5-0.5b-002/artifacts/probes_hook_ablated.json"))
 # 0.5B Run 003-r2 (64-probe persistent-edit ladder; selected wd_ML_BN)
-A004 = load("qwen2.5-0.5b-004/artifacts")
+A004 = load("runs/qwen2.5-0.5b-004/artifacts")
 hr003, _ = rates(os.path.join(A004, "probes_baseline.json"))
 hr003_MLB, _ = rates(os.path.join(A004, "probes_wd_ML_BN.json"))
 _, br003_base = rates(os.path.join(A004, "probes_baseline.json"))
 _, br003_MLB = rates(os.path.join(A004, "probes_wd_ML_BN.json"))
 sel003 = json.load(open(os.path.join(A004, "selection.json")))
 # 7B (spec run_number 5)
-A7 = load("qwen2.5-7b-001/artifacts")
+A7 = load("runs/qwen2.5-7b-001/artifacts")
 hr7, _ = rates(os.path.join(A7, "stageA/probes_baseline.json"))
 hr7_hook, _ = rates(os.path.join(A7, "stageA/probes_hook_ablated.json"))
 hr7_wdML, _ = rates(os.path.join(A7, "stageB/probes_wd_ML.json"))
 sel7 = json.load(open(os.path.join(A7, "stageB/selection.json")))
 # 1.5B Run 002 (64-probe, session-5 banked)
-A15s5 = load("qwen2.5-0.5b-002/eng_run002_pull_s5")
+A15s5 = load("runs/qwen2.5-0.5b-002/eng_run002_pull_s5")
 hr15, _ = rates(os.path.join(A15s5, "probes_baseline.json"))
 hr15_hook, _ = rates(os.path.join(A15s5, "probes_hook_ablated.json"))
 hr15_wdML, _ = rates(os.path.join(A15s5, "probes_wd_ML.json"))
@@ -101,14 +101,14 @@ fig, ax = plt.subplots(figsize=(9.2, 4.6))
 conditions = []
 for name, base_p, post_p in [
     ("0.5B Run 001\n(hook L17)",
-     "qwen2.5-0.5b-002/artifacts/probes_baseline.json",
-     "qwen2.5-0.5b-002/artifacts/probes_hook_ablated.json"),
+     "runs/qwen2.5-0.5b-002/artifacts/probes_baseline.json",
+     "runs/qwen2.5-0.5b-002/artifacts/probes_hook_ablated.json"),
     ("0.5B Run 003-r2\n(edit wd_ML_BN)",
-     "qwen2.5-0.5b-004/artifacts/probes_baseline.json",
-     "qwen2.5-0.5b-004/artifacts/probes_wd_ML_BN.json"),
+     "runs/qwen2.5-0.5b-004/artifacts/probes_baseline.json",
+     "runs/qwen2.5-0.5b-004/artifacts/probes_wd_ML_BN.json"),
     ("1.5B Run 002\n(hook L19)",
-     "qwen2.5-0.5b-002/eng_run002_pull_s5/probes_baseline.json",
-     "qwen2.5-0.5b-002/eng_run002_pull_s5/probes_hook_ablated.json"),
+     "runs/qwen2.5-0.5b-002/eng_run002_pull_s5/probes_baseline.json",
+     "runs/qwen2.5-0.5b-002/eng_run002_pull_s5/probes_hook_ablated.json"),
 ]:
     bb, bp = rates(load(base_p)), rates(load(post_p))
     conditions.append((name, bb[1], bp[1], bb[1] - 10.0))

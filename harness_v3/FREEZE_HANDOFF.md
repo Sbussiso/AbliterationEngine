@@ -27,7 +27,7 @@
    (cos>=0.999, L1<=0.01 for fp16 directions; exact for deterministic JSON).
 
 ## Known-good baseline for the parity test (Run 001, from
-/root/research/abliteration/qwen2.5-0.5b-002/artifacts)
+/root/research/abliteration/runs/qwen2.5-0.5b-002/artifacts)
 - baseline: refusal 0.875, benign_preserved 0.9375
 - hook-ablated: refusal 0.0
 These are the exact values dev confirmed parity reads today.

@@ -15,7 +15,7 @@ from abliteration_engine import cli
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
-BASELINE = os.path.join(REPO, "qwen2.5-0.5b-002", "artifacts")
+BASELINE = os.path.join(REPO, "runs", "qwen2.5-0.5b-002", "artifacts")
 SPEC = os.path.join(REPO, "harness_v3", "specs", "run001_parity.yaml")
 
 

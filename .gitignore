@@ -16,15 +16,21 @@ consolidation/stage_r2/
 variant_*/
 artifacts/*
 # Run 001 parity baseline (provenance for tests/parity contract, CI-runnable)
-!qwen2.5-0.5b-002/artifacts/refusal_direction_A.npy
-!qwen2.5-0.5b-002/artifacts/refusal_direction_B.npy
-!qwen2.5-0.5b-002/artifacts/refusal_direction.npy
-!qwen2.5-0.5b-002/artifacts/probes_baseline.json
-!qwen2.5-0.5b-002/artifacts/probes_hook_ablated.json
-!qwen2.5-0.5b-002/artifacts/selection.json
+!runs/qwen2.5-0.5b-002/artifacts/refusal_direction_A.npy
+!runs/qwen2.5-0.5b-002/artifacts/refusal_direction_B.npy
+!runs/qwen2.5-0.5b-002/artifacts/refusal_direction.npy
+!runs/qwen2.5-0.5b-002/artifacts/probes_baseline.json
+!runs/qwen2.5-0.5b-002/artifacts/probes_hook_ablated.json
+!runs/qwen2.5-0.5b-002/artifacts/selection.json
 logs/
 *.log
 *.pyc
 .pytest_cache/
 .ruff_cache/
 .venv/
+
+# Session-scoped watcher/poller junk (dev-workstation)
+ftt20_*.sh
+ftt20_*.log
+wp*.py
+wp*_state*.json

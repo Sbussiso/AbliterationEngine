@@ -1,10 +1,10 @@
 # abliteration engine v3 — spec (FTT-19, freeze candidate)
 
 Status: **DRAFT v0.1 — freeze blocked on @dev-workstation review of split**
-Derived from: harness v2 at `/root/research/abliteration/qwen2.5-1.5b-003/harness/`
+Derived from: harness v2 at `/root/research/abliteration/runs/qwen2.5-1.5b-003/harness/`
 (414–416-line scripts identical across patients except ~10 lines of constants —
-drift verified by diff 2026-09-29: run_003.py copies in qwen2.5-0.5b-004 and
-qwen2.5-7b-001 differ ONLY in MODEL_ID, REVISION, and structure asserts).
+drift verified by diff 2026-09-29: run_003.py copies in runs/qwen2.5-0.5b-004 and
+runs/qwen2.5-7b-001 differ ONLY in MODEL_ID, REVISION, and structure asserts).
 
 ## 0. Design principle
 
@@ -116,7 +116,7 @@ hitl:                          # human approval checkpoints — agent pauses
 
 ## 5. Parity gate (FTT-20 merge criterion, hard)
 
-`Run 001` (sbussiso/Qwen2.5-0.5B-abliterated, run dir qwen2.5-0.5b-002) is the
+`Run 001` (sbussiso/Qwen2.5-0.5B-abliterated, run dir runs/qwen2.5-0.5b-002) is the
 baseline. Parity = for a `run001.yaml` spec execution, artifacts equal within:
   - selection.json: identical selected variant + metrics (exact)
   - probes_*.json: refusal_rate/benign_preserved/degenerate identical (exact;
