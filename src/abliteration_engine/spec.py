@@ -76,12 +76,23 @@ def load_spec(path):
         raise SpecError("patient.structure_expect must be a mapping")
 
     ps = raw["probe_sets"]
+    # required, validated, never injected: every GPU stage indexes these
+    # directly, so an absent key used to plan green and KeyError on GPU
+    # (the day-2 k_primary lesson, same class).
+    for key in ("harmful", "harmless", "refusal_markers", "n_pairs",
+                "n_probes"):
+        if key not in ps:
+            raise SpecError(f"probe_sets: missing '{key}'")
     if int(ps.get("n_pairs", 64)) < 8:
         raise SpecError("probe_sets.n_pairs < 8 gives degenerate directions")
     if int(ps.get("n_probes", 16)) < 4:
         raise SpecError("probe_sets.n_probes < 4 gives noise-level rates")
 
     dec = raw["decoding"]
+    mnt = dec.get("max_new_tokens")
+    if not isinstance(mnt, int) or isinstance(mnt, bool) or mnt < 1:
+        raise SpecError("decoding.max_new_tokens must be a positive int "
+                        f"(got {mnt!r})")
     if dec.get("strategy", "greedy") not in _DECODING_STRATEGIES:
         raise SpecError(f"decoding.strategy '{dec.get('strategy')}' "
                         "unsupported (v3: greedy only)")
@@ -141,6 +152,9 @@ def load_spec(path):
         raise SpecError("gates.publish_refusal must be in (0,1)")
     if g["mmlu_max_loss_pp"] <= 0:
         raise SpecError("gates.mmlu_max_loss_pp must be > 0")
+    dm = g["degenerate_max"]
+    if not isinstance(dm, int) or isinstance(dm, bool) or dm < 0:
+        raise SpecError("gates.degenerate_max must be an int >= 0")
 
     # v1 amendment: optional hooks block, validated but never default-injected
     # (absent = engine treats as {"scope": "selected"} at use time; keeps
@@ -163,9 +177,27 @@ def load_spec(path):
         raise SpecError(f"probe_sets.marker_mode must be 'v1' or 'v2', "
                         f"got {mm!r}")
 
+    # directions.readout_norm: how readout-space direction B is computed.
+    # 'double' = frozen Run-001 computation (final norm applied on top of
+    # hidden_states[-1], which HF already returns post-norm); 'single' =
+    # the actual lm_head input. Validated only, never injected (absent =
+    # double) so every existing spec_hash and parity anchor stays stable.
+    dirs = raw.get("directions") or {}
+    if not isinstance(dirs, dict):
+        raise SpecError("directions must be a mapping")
+    unknown = sorted(set(dirs) - {"readout_norm"})
+    if unknown:
+        raise SpecError(f"directions: unknown key(s) {unknown}")
+    rn = dirs.get("readout_norm", "double")
+    if rn not in ("double", "single"):
+        raise SpecError(f"directions.readout_norm must be 'double' or "
+                        f"'single', got {rn!r}")
+
     out = dict(raw)
     if hooks:
         out["hooks"] = {"scope": scope}
+    if dirs:
+        out["directions"] = {"readout_norm": rn}
     out["gates"] = g
     out["ladder"] = {**lad, "variants": list(variants)}
     out["decoding"] = {**dec, "seed": int(dec.get("seed", 0))}

@@ -6,8 +6,10 @@ hard-asserts ALL gates before any push:
 
   1. selection.json gate == passed AND publish_eligible_probe_gate true
   2. mmlu guardrail (gates.* key derived from mmlu_max_loss_pp)
-  3. whoami == sbussiso
-  4. spec publish.repo_id matches the single mission-approved target
+  3. whoami owns the target namespace (repo_id owner == whoami name or
+     one of its orgs; spec publish.hf_user pins an exact account)
+  4. --variant-dir is the SELECTED variant's dir and the MMLU summary
+     evaluated the selected variant (no card/weights mismatch)
   5. HITL before_publish (spec.hitl) — REQUIRES explicit --i-know-this-
      publishes confirmation flag (agent-side approval flow upstream)
   6. dev-review close-out, 2026-09-30: hub-side verification now pins
@@ -17,7 +19,12 @@ hard-asserts ALL gates before any push:
      alongside publish on the VM once the hf venv deps land in-tree).
 
 Card is GENERATED from the artifacts (never hand-typed numbers). Hub-side
-verification after upload: file list, config flag, README marker.
+verification after upload: README/config/weights/direction files present,
+hub README carries the abliteration tag and the pinned base revision.
+
+Gates raise PublishGateError (an AssertionError subclass, so existing
+handlers still match) explicitly — never bare `assert`, which `python -O`
+strips.
 """
 import argparse
 import datetime
@@ -25,6 +32,15 @@ import json
 import os
 import shutil
 import sys
+
+
+class PublishGateError(AssertionError):
+    pass
+
+
+def _gate(cond, msg):
+    if not cond:
+        raise PublishGateError(msg)
 
 
 def _pct(x):
@@ -69,21 +85,40 @@ def publish_phase(spec_path, variant_dir, mmlu_json, assume_publish=False):
           f"gate={sel['gate']} eligible={sel['publish_eligible_probe_gate']}")
 
     # ---- gates (hard) ------------------------------------------------
-    assert sel["gate"] == "passed", f"selection gate not passed: {sel['gate']}"
-    assert sel["publish_eligible_probe_gate"] is True, \
-        "probe-side publish gate not met (refusal >= threshold) - DO NOT PUBLISH"
+    _gate(sel["gate"] == "passed", f"selection gate not passed: {sel['gate']}")
+    _gate(sel["publish_eligible_probe_gate"] is True,
+          "probe-side publish gate not met (refusal >= threshold) - "
+          "DO NOT PUBLISH")
     loss_key = next((k for k in mmlu if k.startswith("guardrail_")), None)
-    assert loss_key and mmlu[loss_key] is True, \
-        f"MMLU guardrail failed: {mmlu}"
-    assert os.path.isdir(VDIR), f"missing {VDIR}"
+    _gate(loss_key and mmlu[loss_key] is True,
+          f"MMLU guardrail failed: {mmlu}")
+    _gate(os.path.isdir(VDIR), f"missing variant dir {VDIR}")
+    # the card describes the SELECTED variant; refuse to pair it with other
+    # weights or with an MMLU summary of a different variant
+    sel_dir = sel.get("selected_variant_dir")
+    _gate(not sel_dir or os.path.realpath(sel_dir) == os.path.realpath(VDIR),
+          f"--variant-dir {VDIR} is not the selected variant's dir "
+          f"{sel_dir} ({variant})")
+    _gate(mmlu.get("variant") in (None, variant),
+          f"MMLU summary evaluated {mmlu.get('variant')!r}, but the "
+          f"selected variant is {variant!r}")
 
+    REPO_ID = pub["repo_id"]
     from huggingface_hub import HfApi
     api = HfApi()
     who = api.whoami()
-    assert who["name"] == "sbussiso", f"identity check failed: {who['name']}"
+    owner = REPO_ID.split("/")[0]
+    expected = pub.get("hf_user")
+    orgs = [o.get("name") for o in (who.get("orgs") or [])
+            if isinstance(o, dict)]
+    if expected:
+        _gate(who["name"] == expected,
+              f"identity check failed: {who['name']} != hf_user {expected}")
+    _gate(owner == who["name"] or owner in orgs,
+          f"identity check failed: {who['name']} cannot write to "
+          f"namespace {owner!r}")
     print(f"whoami OK: {who['name']}")
 
-    REPO_ID = pub["repo_id"]
     BASE_ID = spec["patient"]["model_id"]
     BASE_REVISION = spec["patient"]["revision"]
     MARKER = pub.get("card_marker",
@@ -95,9 +130,16 @@ def publish_phase(spec_path, variant_dir, mmlu_json, assume_publish=False):
     base_m = summarize_probes(A, "baseline")
     hook_m = summarize_probes(A, "hook_ablated")
     wd_m = cands[variant]
-    L_star = cfg["layer"]["decoder_layer"]
-    coh = cfg["layer"]["coherence"]
-    coh_B = cfg["layer"]["readout_space_final_layer_coherence"]
+    # run_config "layer" block (written by core.from_spec); artifacts from
+    # engines that never wrote it fall back to layer_coherence.json
+    layer = cfg.get("layer") or {
+        "decoder_layer": lc["best"]["decoder_layer"],
+        "coherence": lc["best"]["coherence"],
+        "readout_space_final_layer_coherence":
+            (lc.get("readout_space") or {}).get("coherence")}
+    L_star = layer["decoder_layer"]
+    coh = layer["coherence"]
+    coh_B = layer["readout_space_final_layer_coherence"]
     struct = cfg["structure"]
     unties_head = variant in ("wd_B", "wd_BN", "wd_ML_BN")
     k_primary = sel.get("k_layers_primary") or []
@@ -138,7 +180,9 @@ def publish_phase(spec_path, variant_dir, mmlu_json, assume_publish=False):
                 f"| {name} | {_pct(c['refusal_rate'])} | "
                 f"{_pct(c['benign_preserved'])} | {c['degenerate_total']} |")
     ladder_md = "\n".join(ladder_rows)
-    loss_human = loss_key.replace("guardrail_", "").replace("pp", "") + "pp"
+    # the key name drops the decimal point (3.0 -> "guardrail_30pp"), so
+    # never derive the human-readable limit from it
+    loss_human = f"{mmlu.get('guardrail_loss_pp_limit', spec['gates']['mmlu_max_loss_pp'])}pp"
 
     readme = f"""---
 license: {pub.get('license', 'apache-2.0')}
@@ -185,7 +229,7 @@ Two families of edits are compared in this repo's evaluation:
 |---|---|
 | chosen decoder layer | {L_star} / {lc['final_layer'] + 1} (hook target `model.model.layers[{L_star}]`) |
 | coherence (residual space) | {coh} |
-| coherence (final-layer readout space, direction B) | {round(coh_B, 4)} |
+| coherence (final-layer readout space, direction B) | {round(coh_B, 4) if coh_B is not None else "n/a"} |
 | published variant | {variant} |
 | structure | {struct['num_hidden_layers']} layers, hidden {struct['hidden_size']}, GQA {struct['num_attention_heads']}q/{struct['num_key_value_heads']}kv heads, tied embeddings: {str(struct['tie_word_embeddings']).lower()} (pre-edit) |
 | direction pairs / probes | {cfg['probes']['n_pairs']} / {cfg['probes']['n_probes']} |
@@ -279,14 +323,18 @@ the pinned revision). Raw results in `eval/`.
 
     # ---- hub-side verification -----------------------------------------
     files = api.list_repo_files(REPO_ID, repo_type="model")
-    for claimed in ("README.md", "config.json", "model.safetensors"):
-        assert claimed in files, f"missing {claimed} on hub"
-    assert any("refusal_direction.npy" == os.path.basename(f)
-               for f in files), "refusal_direction.npy missing on hub"
+    for claimed in ("README.md", "config.json"):
+        _gate(claimed in files, f"missing {claimed} on hub")
+    # >5GB checkpoints (7B fp16) save sharded: index + model-0000x-of-...
+    _gate("model.safetensors" in files
+          or "model.safetensors.index.json" in files,
+          "missing model.safetensors (or sharded index) on hub")
+    _gate(any("refusal_direction.npy" == os.path.basename(f) for f in files),
+          "refusal_direction.npy missing on hub")
     readme_hub = api.hf_hub_download(REPO_ID, "README.md", repo_type="model")
     hub_readme = open(readme_hub).read()
-    assert "abliteration" in hub_readme, "README tag missing on hub"
-    assert BASE_REVISION in hub_readme, "pinned revision missing from hub card"
+    _gate("abliteration" in hub_readme, "README tag missing on hub")
+    _gate(BASE_REVISION in hub_readme, "pinned revision missing from hub card")
     print("PUBLISH_DONE " + json.dumps({
         "repo": REPO_ID, "url": f"https://huggingface.co/{REPO_ID}",
         "n_files": len(files), "variant": variant,

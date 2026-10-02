@@ -156,5 +156,5 @@ def _find_repo_root():
             return str(p)
         p = p.parent
     raise FileNotFoundError(
-        "repo root (pyproject.toml + uv.lock) not found from CWD; pass "
-        "--bundle-repo-root or run from inside the repo")
+        "repo root (pyproject.toml + uv.lock) not found from CWD; run "
+        "from inside the repo (or pass repo_root= to build_bundle)")

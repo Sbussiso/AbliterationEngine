@@ -62,6 +62,5 @@ def resolve_markers(ref):
         with open(ref[len("file:"):]) as f:
             return [ln.strip() for ln in f if ln.strip() and
                     not ln.startswith("#")]
-        return
     raise ValueError(f"marker ref must be list / builtin:<name> / "
                      f"file:<path>, got {ref!r}")

@@ -57,6 +57,8 @@ def plan(spec_path):
               f"w_oc={a['overcorrect_weight']} k={a['neighbor_count']} "
               f"steps={a['steps']}x{a['max_iter']} lr={a['lr']} "
               f"pools {a['good']}/{a['bad']}")
+    if spec.get("directions"):
+        print(f"directions: {spec['directions']}")
     print(f"gates: {spec['gates']}")
     pub = spec.get("publish") or {}
     if pub:
@@ -91,10 +93,14 @@ def validate(spec_path):
     harmful = resolve_probe_set(ps["harmful"])
     harmless = resolve_probe_set(ps["harmless"])
     markers = resolve_markers(ps["refusal_markers"])
-    assert harmful and harmless and markers
-    assert len(harmful) >= ps["n_pairs"], (len(harmful), ps["n_pairs"])
-    assert len(harmless) >= ps["n_pairs"]
-    assert len(harmful) >= ps["n_probes"]
+    # explicit raises, not asserts: `python -O` must not skip validation
+    if not (harmful and harmless and markers):
+        raise SpecError("probe sets and refusal markers must be non-empty")
+    for label, prompts in (("harmful", harmful), ("harmless", harmless)):
+        need = max(ps["n_pairs"], ps["n_probes"])
+        if len(prompts) < need:
+            raise SpecError(f"probe_sets.{label} has {len(prompts)} prompts,"
+                            f" n_pairs/n_probes need {need}")
     spec_hash(spec)
     return 0
 
@@ -112,11 +118,15 @@ def parity(spec_path, baseline_dir, run_dir=None, cos_tol=0.999,
     return 0 if ok else 1
 
 
+def _quota_refusal(verb):
+    print(f"REFUSING: `abliterate {verb}` spends GPU quota. Re-invoke with "
+          "--i-know-this-spends-quota (HITL preserved).")
+    return 2
+
+
 def run(spec_path, assume_yes=False):
     if not assume_yes:
-        print("REFUSING: `abliterate run` spends GPU quota. Re-invoke with "
-              "--i-know-this-spends-quota (HITL preserved).")
-        return 2
+        return _quota_refusal("run")
     from abliteration_engine.pipeline import run_pipeline
     return run_pipeline(load_spec(spec_path))
 
@@ -149,13 +159,15 @@ def main(argv=None):
                         help="[parity] baseline artifacts dir")
     common.add_argument("--run-dir", default=argparse.SUPPRESS,
                         help="[parity] v3 artifacts dir")
-    common.add_argument("--i-know-this-spends-quota", action="store_true")
+    common.add_argument("--i-know-this-spends-quota", action="store_true",
+                        default=argparse.SUPPRESS)
     common.add_argument("--variant-dir", default=argparse.SUPPRESS,
                         help="[publish] local dir holding selected variant")
     common.add_argument("--mmlu", default=argparse.SUPPRESS,
                         help="[publish] mmlu_summary.json path")
-    common.add_argument("--i-know-this-publishes", action="store_true")
-    common.add_argument("--out-dir", default="bundles",
+    common.add_argument("--i-know-this-publishes", action="store_true",
+                        default=argparse.SUPPRESS)
+    common.add_argument("--out-dir", default=argparse.SUPPRESS,
                         help="[bundle] output dir for the tarball")
 
     ap = argparse.ArgumentParser(prog="abliterate", parents=[common])
@@ -179,6 +191,9 @@ def main(argv=None):
     if args.verb == "run":
         return run(args.spec,
                    getattr(args, "i_know_this_spends_quota", False))
+    if args.verb in ("ladder", "mmlu") and \
+            not getattr(args, "i_know_this_spends_quota", False):
+        return _quota_refusal(args.verb)
     if args.verb == "ladder":
         from abliteration_engine.pipeline import ladder_phase
         return ladder_phase(args.spec)
@@ -191,7 +206,8 @@ def main(argv=None):
                 and getattr(args, "mmlu", None)):
             ap.error("publish needs --variant-dir and --mmlu")
         return publish_phase(args.spec, args.variant_dir, args.mmlu,
-                             assume_publish=args.i_know_this_publishes)
+                             assume_publish=getattr(
+                                 args, "i_know_this_publishes", False))
     raise SystemExit(f"verb '{args.verb}' not implemented yet")
 
 

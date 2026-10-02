@@ -58,14 +58,14 @@ def test_all_verbs_route():
 
 def test_hookonly_ladder_refusal():
     sp = _hookonly_spec_file()
-    rc = _cli_main(["ladder", "--spec", sp])
+    rc = _cli_main(["ladder", "--spec", sp, "--i-know-this-spends-quota"])
     assert rc == 2, rc
     print("PASS ladder refused on hook-only spec (rc=2)")
 
 
 def test_hookonly_mmlu_refusal(tmp_path):
     sp = _hookonly_spec_file()
-    rc = _cli_main(["mmlu", "--spec", sp])
+    rc = _cli_main(["mmlu", "--spec", sp, "--i-know-this-spends-quota"])
     assert rc == 5, rc
     print("PASS mmlu guards selection.json absence (rc=5)")
 

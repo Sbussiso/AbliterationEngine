@@ -136,7 +136,7 @@ def test_banked_resume_knows_ara_names():
     # the ARA block runs the banked check for its own variant name
     assert "ara_name in variants" in src
     # the generic loop's banked check is name-agnostic (any variant)
-    assert "_banked_variant_summary(spec, name)" in src
+    assert "_banked_variant_summary(spec, name, prov[name])" in src
 
 
 def test_selection_and_runcfg_provenance_wired():

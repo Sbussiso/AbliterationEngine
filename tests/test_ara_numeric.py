@@ -321,7 +321,9 @@ def test_variant_lifecycle_end_to_end(tmp_path, monkeypatch):
     assert os.path.exists(probes_f)
     d = json.load(open(probes_f))
     assert len(d["harmful"]) == 4 and len(d["harmless"]) == 4
-    vdir = os.path.join(str(tmp_path), "vars", "ara_4")
+    # variant dirs are run-scoped: <VARBASE>/<run dir>_variants/<name>
+    vdir = os.path.join(str(tmp_path), "vars",
+                        "eng_run_098_ara-numeric_variants", "ara_4")
     cfg = json.load(open(os.path.join(vdir, "config.json")))
     assert cfg["tie_word_embeddings"] is True  # ARA keeps the tie
 

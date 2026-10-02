@@ -26,10 +26,10 @@ Algorithm (per decoder layer, per o_proj/down_proj matrix):
 Engine deviations from the Heretic reference (deliberate, documented):
   1. NO TPE: variant parameters come from the spec's ladder.ara block —
      the same provenance model as every other variant in this engine.
-  2. Stream-and-merge capture: module I/O is captured one batch at a time
-     and merged per module WITHOUT holding all layers' I/O in memory
-     simultaneously (the reference caches every layer's I/O up front —
-     fine for <=1.5B on Colab, fatal at 7B fp16).
+  2. Streamed capture: module I/O is captured one batch at a time and
+     only the final-position rows are kept, parked on CPU — the merged
+     result still holds every requested layer's (final-position) I/O,
+     but never full-sequence activations on the GPU.
   3. Captures park in float32 on CPU; the optimizer runs fp32 on the
      module's device (reference numerics, different parking spot).
   4. PEFT-free: A/B are plain fp32 tensors and W_eff is computed manually
@@ -45,7 +45,6 @@ construction (tests/test_ara_variant.py pins this), so the optimizer never
 tunes on its own evaluation set. 400 rows each = the reference's
 train[:400] defaults.
 """
-import json
 import os
 import time
 
@@ -333,7 +332,7 @@ def verify_ara_on_disk(model_r, base_model, layers):
     return out
 
 
-def run_ara_variant(spec, name, cfg, model_base=None):
+def run_ara_variant(spec, name, cfg, model_base=None, provenance=None):
     """The ARA variant lifecycle, mirroring edits.run_variant:
     base load -> capture good/bad module I/O -> per-layer L-BFGS fit ->
     materialize -> save -> RELOAD from disk -> verify -> probe ->
@@ -344,7 +343,7 @@ def run_ara_variant(spec, name, cfg, model_base=None):
 
     from abliteration_engine import core
     from abliteration_engine.data import resolve_probe_set
-    from abliteration_engine.edits import save_variant
+    from abliteration_engine.edits import save_variant, write_variant_probes
 
     print(f"      --- {name} (ARA rank {cfg.get('rank')}) ---", flush=True)
     t0 = time.time()
@@ -379,8 +378,7 @@ def run_ara_variant(spec, name, cfg, model_base=None):
     del good_io, bad_io
     gc.collect()
 
-    VARBASE = os.environ.get("ENG_VARBASE") or core.eng_base()
-    var_dir = os.path.join(VARBASE, name)
+    var_dir = core.variant_dir(spec, name)
     save_variant(model_v, tok_v, var_dir, expect_tied=True)
     del model_v
     gc.collect()
@@ -412,9 +410,7 @@ def run_ara_variant(spec, name, cfg, model_base=None):
     s["on_disk_verify"] = disk
     s["tie_flag_on_disk"] = model_r.config.tie_word_embeddings
     s["wall_s"] = round(time.time() - t0, 1)
-    json.dump({"harmful": r_h, "harmless": r_b},
-              open(os.path.join(core._out_dir(spec), f"probes_{name}.json"),
-                   "w"), indent=2)
+    write_variant_probes(spec, name, r_h, r_b, provenance)
     print(f"      {name} reloaded: refusal={s['refusal_rate']} "
           f"benign={s['benign_preserved']} "
           f"degenerate={s['degenerate_total']}", flush=True)
