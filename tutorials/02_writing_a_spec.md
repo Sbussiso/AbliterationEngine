@@ -105,8 +105,10 @@ probe_sets:
   old and new numbers stay comparable. Tutorial 4 covers where this
   simple detector gets fooled and how scoring v2 fixes it.
 
-Want your own questions? One prompt per line in a text file works —
-the format is in `src/abliteration_engine/sets/`.
+Want your own questions? Put one prompt per line in a text file and
+point the spec at it with `file:`, e.g. `harmful: file:my_prompts.txt`
+(the path is relative to the folder you run `abliterate` from). The
+built-in sets in `src/abliteration_engine/sets/` show the format.
 
 ---
 
@@ -120,9 +122,10 @@ decoding:
 ```
 
 Leave this exactly as-is unless you know why you'd change it. "Greedy +
-seed 0" means: the same model + same question = the same answer,
-every time, on every machine. That's what makes the byte-identical
-cross-checks in Tutorial 1 possible.
+seed 0" means: the same model + same question = the same answer, every
+time on the same setup. Different GPUs can round fp16 math slightly
+differently, which is why Tutorial 1's parity check compares directions
+with a tolerance instead of demanding identical bytes.
 
 ---
 
@@ -183,13 +186,20 @@ the harmful set — **is auto-rejected for publishing**. You can tighten
 these; only loosen `publish_refusal` if you're intentionally
 characterizing rather than shipping.
 
+> Advanced, optional: a `directions:` block with `readout_norm: single`
+> computes the "readout" refusal direction (used by the `wd_B`,
+> `wd_BN` and `wd_ML_BN` surgeries) from the model's real final-layer
+> output. Leaving it out keeps the original computation, which applies the
+> final normalization twice; the shipped specs leave it out so their
+> results stay comparable with the published runs.
+
 ---
 
 ### Block 7 — `publish` + `hitl`: where results go & who says OK
 
 ```yaml
 publish:
-  repo_id: sbussiso/Qwen2.5-0.5B-abliterated   # your HF model page name
+  repo_id: sbussiso/Qwen2.5-0.5B-abliterated   # <your-hf-name>/<model-name>
   license: apache-2.0
   card_marker: "abliterated by the sbussiso lab research agent"
 hitl:
@@ -197,11 +207,18 @@ hitl:
   before_publish: true     # pause before any upload: your call
 ```
 
-> `hitl` = "human in the loop." With both set to `true`, the tool
-> stops and waits for a human "yes" at the two moments that matter:
-> after the winner is chosen, and before anything touches the
-> internet. On a personal hobby run you can flip these to `false` to
-> sail straight through — but then a surprise stays a surprise.
+> `hitl` = "human in the loop." The tool never runs straight from
+> ladder to upload: `ladder`, `mmlu` and `publish` are separate commands,
+> so you look at `selection.json` yourself before going on
+> (`after_selection` records that intent in the plan; nothing pauses
+> mid-run). `before_publish: true` makes `publish` refuse unless you
+> also type `--i-know-this-publishes`. Setting it to `false` drops
+> that flag requirement; every other publish check still applies.
+>
+> Publishing only works when the Hugging Face account you're logged in
+> as owns the `repo_id` namespace (your username, or an organization
+> you belong to). Add `hf_user: <name>` under `publish:` to pin one exact
+> account.
 
 ---
 
@@ -239,7 +256,7 @@ the pipeline.
 | A more thorough surgery | more layers in ladder `k_*` |
 | Try the self-tuning surgery too | add `ara_50` to `ladder.variants` |
 | Just measure, no surgery | `ladder.variants: []` |
-| No pauses before publish | `hitl: {after_selection: false, before_publish: false}` |
+| Publish without the `--i-know-this-publishes` flag | `hitl: {before_publish: false}` |
 
 Next: [Tutorial 3 — surviving session kills](03_banked_resume_ops.md),
 or jump to [Tutorial 5 — publishing](05_publishing.md) when your gates

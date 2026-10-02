@@ -10,7 +10,7 @@ laptop, or in the same Colab session as the rest of the run.
 
 ---
 
-## The big idea: five locks, then the door opens
+## The big idea: every lock, then the door opens
 
 Publishing is deliberately boring: the tool re-checks **every** claim
 about your model, refuses on any failure, generates the model card
@@ -22,11 +22,12 @@ scrambled.
 |---|---|---|
 | 1. Selection gate | the ladder's winner genuinely passed | "selection gate not passed" |
 | 2. Probe gate | model still refuses under 25% of harmful probes | "refusal >= threshold — DO NOT PUBLISH" |
-| 3. MMLU guardrail | knowledge exam: ≤3 points lost vs original | "MMLU guardrail failed" |
+| 3. MMLU guardrail | knowledge exam: less than 3 points lost vs original | "MMLU guardrail failed" |
 | 4. Files on disk | the winner's actual weights exist locally | "missing variant dir" |
-| 5. Identity | your Hugging Face token = the account you expect | "identity check failed" |
+| 5. Right weights | `--variant-dir` is the winner's folder, and the exam summary graded the winner | "not the selected variant's dir" / "MMLU summary evaluated …" |
+| 6. Identity | your Hugging Face login owns the `repo_id` namespace (your username or one of your orgs; `publish.hf_user` pins an exact account) | "identity check failed" |
 
-Five locks, one key: you must pass `--i-know-this-publishes` yourself.
+Six locks, one key: you must pass `--i-know-this-publishes` yourself.
 Nothing ships by accident. That's the whole philosophy of this tool:
 **risky actions require explicit, human-initiated intent.**
 
@@ -58,27 +59,33 @@ the tool is already installed there):
 ```
 
 You'll need your Hugging Face token in the session either way —
-`huggingface-cli login` from a terminal, or in Colab:
+`hf auth login` from a terminal, or in Colab:
 
 ```python
 !pip install -q -U huggingface_hub
-!huggingface-cli login
+!hf auth login
 ```
+
+(Older `huggingface_hub` versions call this `huggingface-cli login`.)
 
 (The first command installs the tools; the second opens the login
 prompt — paste your token from [hf.co/settings/tokens](https://huggingface.co/settings/tokens).)
 
-- `--variant-dir`: the folder the ladder saved the winning variant to
-  (the on-disk model files — wherever you're running this, they must
-  be on *that* machine's disk).
+- `--variant-dir`: the folder the ladder saved the winning variant to.
+  It's `selected_variant_dir` in `selection.json`, e.g.
+  `/content/eng_run_001_qwen2.5-0.5b_variants/wd_B`, and the files must be
+  on the disk of the machine you're publishing from. If you moved them,
+  point `--variant-dir` at the new spot *and* update
+  `selected_variant_dir` to match, or lock 5 refuses.
 - `--mmlu`: the exam summary from Tutorial 1 Step 5b.
 
 If any lock fails: **nothing uploads.** The error names the exact
 gate. Fix the run (or the variant), don't the gate.
 
-> If your run used the `hitl` block (Tutorial 2), the tool paused at
-> "after_selection" and "before_publish" mid-run — those pauses were
-> designed to give you this exact moment of control.
+> The `hitl` block (Tutorial 2) is why that flag exists: with
+> `before_publish: true` (the default), `publish` refuses without it.
+> Nothing pauses mid-run. `ladder`, `mmlu` and `publish` are separate
+> commands precisely so you get this moment of control between them.
 
 ---
 
@@ -105,10 +112,12 @@ unless the result files lie — and those are hash-checked.
 
 The publish stage reads your new Hugging Face repo *back* and asserts:
 
-- the expected files are all there,
-- the config has the right flags,
-- the marker line is present in the hub README,
-- the pinned base revision appears on the hub card.
+- `README.md` and `config.json` are there,
+- the weights are there (`model.safetensors`, or the sharded index for
+  big models),
+- `refusal_direction.npy` is there,
+- the hub README carries the `abliteration` tag and the pinned base
+  revision.
 
 A push that "worked" but uploaded the wrong metadata still fails. The
 task isn't done when the bytes leave — it's done when the hub is

@@ -178,8 +178,9 @@ Then, the exam:
 
 This runs the MMLU knowledge test (57 subjects: history, law, medicine,
 …) on both the original and your surgically-modified copy. If your
-model got more than 3 percentage points dumber — the run halts and
-tells you. Our published models lost essentially nothing (the 7B one:
+model got 3 or more percentage points dumber, the exam stage fails
+(exit code 6, `GUARDRAIL FAILED` in the log) and `publish` will refuse
+to upload it. Our published models lost essentially nothing (the 7B one:
 71.77% → 71.77%, i.e. unchanged).
 
 ## Step 6 — Check your results against the record (5 minutes)
@@ -200,6 +201,13 @@ Then grab your results: in Colab's file browser (folder icon, left),
 find `/content/eng_run_001_qwen2.5-0.5b`, right-click the folder →
 **Download**.
 
+The model *weights* from the ladder live in a separate folder next to
+it, `/content/eng_run_001_qwen2.5-0.5b_variants/`. Only the winning
+surgery is kept there (the others are deleted to save disk), and its
+exact path is written in `selection.json` as `selected_variant_dir`.
+It's large (about 1 GB for 0.5B), so download it only if you plan to
+publish from another machine.
+
 ## You did it — what do you have?
 
 A folder that contains:
@@ -207,7 +215,8 @@ A folder that contains:
 - the direction the model uses to refuse (`refusal_direction_*.npy`),
 - before/after report cards on how the model behaved
   (`probes_baseline.json`, `probes_hook_ablated.json`),
-- (if you ran the ladder) the permanent surgery recipes and their grades,
+- (if you ran the ladder) the permanent surgery recipes and their grades
+  — and, in the sibling `_variants` folder, the winning model's weights,
 - the knowledge exam results (`mmlu_summary.json`),
 - a receipt that ties it all to your exact settings
   (`run_config.json`).
