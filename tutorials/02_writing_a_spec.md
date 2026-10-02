@@ -202,6 +202,7 @@ publish:
   repo_id: sbussiso/Qwen2.5-0.5B-abliterated   # <your-hf-name>/<model-name>
   license: apache-2.0
   card_marker: "abliterated by the sbussiso lab research agent"
+  # card_byline: "lab agent profile"   # optional: shown in () after the marker
 hitl:
   after_selection: true    # pause after picking the winner: your call
   before_publish: true     # pause before any upload: your call

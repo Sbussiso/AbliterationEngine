@@ -226,7 +226,8 @@ def test_mmlu_banked_reuse_requires_matching_provenance(tmp_path,
 # ---- publish ------------------------------------------------------------------------
 
 def _publish(tmp_path, monkeypatch, cfg_mutate=None, mmlu_mutate=None,
-             who=None, vdir=None):
+             who=None, vdir=None, artifacts_mutate=None,
+             publish_overrides=None):
     from abliteration_engine import publish as P
 
     out_dir = pc._eng_root_env(tmp_path, monkeypatch)
@@ -244,7 +245,9 @@ def _publish(tmp_path, monkeypatch, cfg_mutate=None, mmlu_mutate=None,
         m = json.loads(mmlu_p.read_text())
         mmlu_mutate(m)
         mmlu_p.write_text(json.dumps(m))
-    spec = pc._spec_file(tmp_path, monkeypatch)
+    if artifacts_mutate:
+        artifacts_mutate(out_dir)
+    spec = pc._spec_file(tmp_path, monkeypatch, **(publish_overrides or {}))
     api = pc._fake_hub(tmp_path, files=("README.md", "config.json",
                                         "model.safetensors.index.json",
                                         "refusal_direction.npy"))
@@ -293,6 +296,50 @@ def test_publish_identity_is_namespace_owner(tmp_path, monkeypatch):
     rc, _ = _publish(tmp_path, monkeypatch,
                      who={"name": "alice", "orgs": [{"name": "sbussiso"}]})
     assert rc == 0
+
+
+def test_card_describes_only_the_published_variant(tmp_path, monkeypatch):
+    """The card rendered the whole edit_desc dict (every variant's
+    description as a Python repr) instead of the published one."""
+    rc, vdir = _publish(tmp_path, monkeypatch)
+    card = (vdir / "README.md").read_text()
+    assert "{'wd_B'" not in card
+    line = next(ln for ln in card.splitlines()
+                if "persistent weight edit (published artifact" in ln)
+    assert "`wd_B`" in line and "lm_head readout-space" in line
+    assert "wd_ML" not in line
+    assert "Hermes" not in card  # attribution only via publish.card_byline
+    assert "Arditi et al. (2024) refusal-direction method" in card
+
+
+def test_card_byline_and_hook_scope_all(tmp_path, monkeypatch):
+    rc, vdir = _publish(
+        tmp_path, monkeypatch,
+        cfg_mutate=lambda c: c.update(hooks={"scope": "all"}),
+        publish_overrides={"card_byline": "lab agent profile"})
+    card = (vdir / "README.md").read_text()
+    assert "(lab agent profile) on" in card
+    assert "| hook (inference-time, all layers) |" in card
+    assert "at every decoder layer" in card
+
+
+def test_card_names_ara_method_for_ara_variant(tmp_path, monkeypatch):
+    def to_ara(out_dir):
+        sel = json.loads((out_dir / "selection.json").read_text())
+        sel.update(selected="ara_8",
+                   ladder_ara={"layers": [3, 4]})
+        (out_dir / "selection.json").write_text(json.dumps(sel))
+        (out_dir / "selection_candidates.json").write_text(json.dumps(
+            [{"variant": "ara_8", "refusal_rate": 0.05,
+              "benign_preserved": 1.0, "degenerate_total": 0}]))
+    rc, vdir = _publish(
+        tmp_path, monkeypatch, artifacts_mutate=to_ara,
+        cfg_mutate=lambda c: c.update(ladder_ara={"rank": 8}))
+    assert rc == 0
+    card = (vdir / "README.md").read_text()
+    assert "produced with Arbitrary-Rank Ablation (ARA, Weidmann 2026)" in card
+    assert "does not remove that direction" in card
+    assert "`ara_8`" in card and "rank-8 LoRA" in card
 
 
 # ---- torch-only (skipped in CPU CI) ------------------------------------------------

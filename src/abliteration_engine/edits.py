@@ -46,7 +46,13 @@ def orthogonalize_lm_head(model, direction):
 
 def orthogonalize_final_norm(model, direction):
     """w <- w - (w.d) d on the final RMSNorm weight (readout-space
-    direction). Returns (w.d before, |w_new . d| after edit-in-fp32)."""
+    direction). Returns (w.d before, |w_new . d| after edit-in-fp32).
+
+    Heuristic, not an exact projection: the norm output is w * x_hat, whose
+    component along d is sum_i w_i x_hat_i d_i — zero only for every input
+    if w * d = 0, which w.d = 0 does not imply. Kept as-is (frozen ladder
+    semantics; wd_BN/wd_ML_BN results and parity depend on it); the exact
+    readout removal is the lm_head edit that always accompanies it."""
     n = core.final_norm_module(model)
     d = direction.detach().float().cpu()
     d = d / d.norm()

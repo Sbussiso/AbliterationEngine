@@ -144,14 +144,21 @@ def publish_phase(spec_path, variant_dir, mmlu_json, assume_publish=False):
     unties_head = variant in ("wd_B", "wd_BN", "wd_ML_BN")
     k_primary = sel.get("k_layers_primary") or []
     k_combo = sel.get("k_layers_combo") or []
+    # final-norm "orth" zeroes w.d on the RMSNorm weight; the norm output is
+    # w*x_hat, so this does not project d out of the output exactly —
+    # described as what it is on the card
+    norm_note = ("final-norm weight edit (w <- w - (w.d)d: zeroes the norm "
+                 "weight's component along the readout direction; a "
+                 "heuristic, not an exact projection of d out of the "
+                 "normalized output)")
     edit_desc = {
         "wd_B": "lm_head readout-space orthogonalization (run-002 recipe)",
-        "wd_BN": "lm_head readout-space orth + final-norm weight orth",
+        "wd_BN": f"lm_head readout-space orthogonalization + {norm_note}",
         "wd_ML": (f"multi-layer row-space orth of o_proj/down_proj at the "
                   f"top-{len(k_primary)} coherence layers {k_primary}, each "
                   f"against its own layer direction"),
         "wd_ML_BN": (f"multi-layer row-space orth at top-{len(k_combo)} "
-                     f"layers {k_combo} + lm_head orth + final-norm orth"),
+                     f"layers {k_combo} + lm_head orth + {norm_note}"),
     }
     if variant.startswith("ara_"):
         acfg = cfg.get("ladder_ara") or {}
@@ -170,6 +177,16 @@ def publish_phase(spec_path, variant_dir, mmlu_json, assume_publish=False):
             f"{'preserved' if acfg.get('preserve_row_magnitudes', True) else 'NOT preserved'}; "
             f"optimizer pools {acfg.get('good')}/{acfg.get('bad')} "
             f"(disjoint from the eval probes)")
+
+    is_ara = variant.startswith("ara_")
+    method_name = ("Arbitrary-Rank Ablation (ARA, Weidmann 2026)" if is_ara
+                   else "the Arditi et al. (2024) refusal-direction method")
+    byline = pub.get("card_byline")
+    hook_scope = (cfg.get("hooks") or {}).get("scope", "selected")
+    hook_where = ("at every decoder layer" if hook_scope == "all"
+                  else f"at decoder layer {L_star}")
+    hook_label = "all layers" if hook_scope == "all" else f"L{L_star}"
+    published_edit = edit_desc.get(variant, variant)
 
     ladder_rows = []
     ara_names = [v for v in cands if str(v).startswith("ara_")]
@@ -199,9 +216,9 @@ library_name: transformers
 # {REPO_ID}
 
 Abliterated (refusal-direction) variant of [{BASE_ID}](https://huggingface.co/{BASE_ID})
-at revision `{BASE_REVISION}`, produced by the Arditi et al. (2024) method.
+at revision `{BASE_REVISION}`, produced with {method_name}.
 
-**{MARKER.capitalize()}** (Hermes, research-workstation profile) on
+**{MARKER.capitalize()}**{f" ({byline})" if byline else ""} on
 {cfg.get('gpu', 'Colab')}, {datetime.date.today().isoformat()}.
 Harness v3 spec `{os.path.basename(spec['_spec_path'])}`
 (sha {spec['_spec_sha256'][:12]}, engine {cfg.get('engine', 'eng-v3')}).
@@ -212,15 +229,15 @@ Arditi et al. 2024, "Refusal in LLMs is mediated by a single direction"
 (NeurIPS 2024). From {cfg['probes']['n_pairs']} harmful/harmless prompt pairs
 (greedy decoding, seed {cfg['decoding']['seed']}), the mean difference of
 final-position residual activations gives the refusal direction at each
-layer; the layer with the highest direction coherence was chosen and its
-direction removed.
+layer; the most coherent layer (decoder layer {L_star}) anchors the
+inference-time contrast below.{" The published ARA edit does not remove that direction: it fits a low-rank weight update by optimization (details below)." if is_ara else ""}
 
 Two families of edits are compared in this repo's evaluation:
 
-- inference-time ablation: project the direction out of every activation at
-  decoder layer {L_star} (forward hook, all positions) - the full-removal
+- inference-time ablation: project the layer-{L_star} direction out of every
+  activation {hook_where} (forward hook, all positions) - the full-removal
   contrast, NOT the published weights;
-- **persistent weight decoding (published artifact)**: {edit_desc}.
+- **persistent weight edit (published artifact, `{variant}`)**: {published_edit}.
   Base ships with tied embeddings{", so the lm_head edit was applied to an UNTIED clone and `tie_word_embeddings: false` is persisted in this repo's config.json (input embeddings untouched)" if unties_head else " - this variant leaves the embedding tie intact because it edits only decoder-layer output matrices"}.
 
 ## Ablation details
@@ -243,7 +260,7 @@ Two families of edits are compared in this repo's evaluation:
 | condition | harmful refusal rate | harmless answered | degenerate outputs |
 |---|---|---|---|
 | baseline | {_pct(base_m['refusal_rate'])} | {_pct(base_m['benign_preserved'])} | {base_m['degenerate_total']} |
-| hook (inference-time, L{L_star}) | {_pct(hook_m['refusal_rate'])} | {_pct(hook_m['benign_preserved'])} | {hook_m['degenerate_total']} |
+| hook (inference-time, {hook_label}) | {_pct(hook_m['refusal_rate'])} | {_pct(hook_m['benign_preserved'])} | {hook_m['degenerate_total']} |
 {ladder_md}
 
 Headline: refusal {_pct(base_m['refusal_rate'])} -> {_pct(wd_m['refusal_rate'])}

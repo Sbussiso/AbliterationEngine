@@ -95,7 +95,9 @@ Every number on the Hugging Face card is generated from your result
 files: probe percentages (baseline vs edited), benign-preservation,
 degenerate counts, MMLU before/after, which layers were edited and how,
 plus the model lineage (which base model, which pinned version) and a
-plain-language safety note + the spec's `card_marker` line.
+plain-language safety note + the spec's `card_marker` line (and the
+optional `card_byline`). The method paragraph names the surgery that was
+actually published, such as `wd_ML` or `ara_50`.
 
 Real example — the whole card is one file:
 [`tutorials/assets/example_card_7b.md`](assets/example_card_7b.md),

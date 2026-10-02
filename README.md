@@ -58,7 +58,7 @@ the opposite:
   nothing silently degrades into a fake "pass".
 - **Interrupted GPU sessions resume from disk.** Completed variants are
   banked to files and reused ("banked resume") instead of recomputed —
-  proven across 3 real Colab session-reaps in one day. Banked results carry
+  proven across 4 real Colab session-reaps in one day. Banked results carry
   a provenance fingerprint, so a stale file from a different stage A or
   config is re-run rather than trusted.
 
