@@ -136,7 +136,7 @@ src/…/sets/                ← builtin probe sets + refusal markers
 specs/                     ← shipped run specs (validated by CI)
 tests/                     ← contract tests, all CPU-only, run in CI
 tests/fixtures/            ← the committed parity anchors the CI contract reads
-docs/                      ← README figures + the generator that makes them
+docs/                      ← the two README figures
 tutorials/                 ← zero-to-ablated-model walkthroughs (Colab-first)
 ```
 
