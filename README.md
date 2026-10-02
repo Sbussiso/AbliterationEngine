@@ -52,11 +52,15 @@ the opposite:
 - **Every risky action requires an explicit flag.** You cannot spend GPU
   quota or push to Hugging Face by accident — `--i-know-this-spends-quota`
   and `--i-know-this-publishes` are hard contracts.
-- **Failures are loud and structured.** A failed gate exits non-zero with a
-  machine-readable reason; nothing silently degrades into a fake "pass".
+- **Failures are loud and structured.** Every gate decision is recorded
+  machine-readably (`selection.json`, `mmlu_summary.json`); a failed MMLU
+  guardrail exits non-zero, and `publish` refuses on any failed gate —
+  nothing silently degrades into a fake "pass".
 - **Interrupted GPU sessions resume from disk.** Completed variants are
   banked to files and reused ("banked resume") instead of recomputed —
-  proven across 3 real Colab session-reaps in one day.
+  proven across 4 real Colab session-reaps in one day. Banked results carry
+  a provenance fingerprint, so a stale file from a different stage A or
+  config is re-run rather than trusted.
 
 ## How a run flows
 
@@ -64,11 +68,11 @@ the opposite:
 |---|---|---|
 | **spec** (YAML) | pinned model + probe sets + gate rules | no |
 | **capture** | activations recorded on harmful vs harmless prompts | yes |
-| **direction scan** | every layer × position scored; the strongest coherent direction is picked | yes |
+| **direction scan** | every layer scored at the final prompt position; the most coherent layer's direction is picked | yes |
 | **stage A probes** | baseline vs hook-ablated behavior compared (runtime-only, nothing saved) | yes |
 | **stage B ladder** | persistent weight-edits (`wd_B / wd_BN / wd_ML / wd_ML_BN`) + ARA optimizer variants (`ara_<rank>`, Weidmann 2026), each: edit → save → reload → verify → probe | yes |
 | **selection gate** | benign-preservation floor met, zero degenerates | — |
-| **MMLU guardrail** | knowledge loss ≤ 3pp, else STOP | yes |
+| **MMLU guardrail** | knowledge loss must stay under 3pp (`gates.mmlu_max_loss_pp`), else the stage exits 6 and publish refuses | yes |
 | **publish** | all gates verified → Hugging Face push + model card | no |
 
 Full stage-by-stage detail lives in `plan` (`uv run --no-sync abliterate plan --spec <spec>` prints it for any spec, zero side effects).
@@ -91,21 +95,26 @@ start with [your first ablated model](tutorials/01_first_ablated_model.md).
 
 | Verb | Needs GPU | What it does |
 |---|---|---|
+| `init` | no | write a starter spec for any HF model: pins the revision, fills the shape check, flags unsupported architectures |
 | `plan` | no | print the full stage plan for a spec — zero side effects |
 | `validate` | no | fail-fast spec check (pinned revisions, gate ordering, …) |
-| `run` | yes | stage A: capture → direction scan → baseline + hook probes |
-| `ladder` | yes | stage B: persistent-edit variants, each edit→save→reload→verify→probe |
-| `mmlu` | yes | guardrail: identical lm-eval config both sides, ≤3pp loss gate |
-| `publish` | no | verify ALL gates locally, then push weights + card to HF |
+| `run` | yes | stage A (capture → direction scan → baseline + hook probes), then the stage-B ladder; `--with-mmlu` chains the guardrail too |
+| `ladder` | yes | stage B only (resume): persistent-edit variants, each edit→save→reload→verify→probe |
+| `mmlu` | yes | guardrail: identical lm-eval config both sides, <3pp loss gate |
+| `publish` | no | verify ALL gates locally, then push weights + card to HF (finds the winner and MMLU summary from the run's records) |
 | `parity` | no | strict diff vs a known-good baseline run (fails loudly, never fakes) |
 | `bundle` | no | freeze engine+spec+runner into a sha256'd tarball for Colab |
 
 Every GPU verb requires explicit `--i-know-this-spends-quota`; `publish`
-additionally requires `--i-know-this-publishes`.
+additionally requires `--i-know-this-publishes`. `abliterate <verb> -h`
+lists a verb's options. Spec mistakes come back as one `REFUSING:` line,
+and an unsupported model architecture is refused right after loading,
+before any heavy GPU work.
 
 ## Writing your own run
 
-Copy `specs/run001_parity.yaml` and edit the run-specific fields — the spec
+Start with `abliterate init --model <hf-id>` (or copy
+`specs/run001_parity.yaml`) and edit the run-specific fields — the spec
 schema is `spec_version, run_card, patient, probe_sets, decoding, ladder,
 gates, publish, hitl, colab`, with fail-fast validation on load:
 
@@ -126,6 +135,13 @@ gates:                                                 # publish will refuse
 The built-in probe sets and refusal markers ship verbatim from v2, so old
 and new run configs stay behaviorally identical — that's what makes the
 cross-version parity contract mean something.
+
+One known quirk is kept for the same reason: the readout-space direction B
+is, by default, computed with the final RMSNorm applied twice (Hugging Face
+already returns the last hidden state post-norm). Set
+`directions: {readout_norm: single}` in a new spec to compute it from the
+actual `lm_head` input; leaving it out keeps the frozen Run-001 computation
+and its parity anchors.
 
 Beyond the four built-in `wd_*` edits, the ladder accepts **ARA variants**
 (`ara_<rank>`, Arbitrary-Rank Ablation, Weidmann 2026 — the method behind
@@ -157,8 +173,9 @@ The engine (`src/abliteration_engine/`) is the product this repo exists for.
 
 ### Runs and results
 
-Each run is driven by a YAML spec in `specs/` — one spec, one record. The
-measured outcomes for the program so far:
+Runs are driven by YAML specs; the ones shipped in `specs/` are validated
+by CI (not every historical run below has a shipped spec). The measured
+outcomes for the program so far:
 
 | Run | Patient | Outcome |
 |---|---|---|
@@ -172,10 +189,14 @@ measured outcomes for the program so far:
 ## Operating notes
 
 - **Colab flow:** `abliterate bundle` → upload tarball → `bash runner.sh`
-  (`PHASE=run|ladder|mmlu|publish`) → poll `exit_code.txt` /
+  (`PHASE=run|ladder|mmlu|all`, where `all` = `run --with-mmlu`) → poll `exit_code.txt` /
   `ENG<STAGE>_DONE` / `<stage>_error.txt` sentinels (written by the engine,
   never the runner — contract-tested) → pull → verify per-file hashes
   against `bundle_meta.json` before trusting anything.
+- **Where the weights land:** each ladder variant is saved to
+  `$ENG_OUT_ROOT/eng_run_<NNN>_<patient>_variants/<variant>` (a sibling of
+  the artifacts folder, scoped per run so runs never overwrite each other);
+  `selection.json` records the winner's path as `selected_variant_dir`.
 - **Session reaps are cheap here:** phase-banking + banked-resume mean a
   killed Colab session costs an ~8-min re-warmup, not re-computation
   (probe outputs reproduced byte-identically across 3 independent restarts

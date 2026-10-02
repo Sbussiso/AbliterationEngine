@@ -27,8 +27,9 @@ def session_grader(spec):
 
     v1 (default/absent) = refusal_score substring grader — the frozen
     Run-001 parity contract's exactly-once grading at probe time. v2 =
-    refusal_score_v2 (word boundary + offer-tail exception, grader-under-
-    study; zero collateral flips validated over N=192 logged rows).
+    scoring_v2.classify (substring marker scan + line-anchored help
+    evidence, grader-under-study; zero collateral flips validated over
+    N=192 logged rows).
     Cached by spec sha so from_spec and ladder_phase in one persistent
     kernel always share the session's one grader pair.
     """
@@ -106,13 +107,29 @@ def sentinel_exit() -> str:
     return os.path.join(eng_base(), "exit_code.txt")
 
 
-def _out_dir(spec, create=False):
+def run_dir_name(spec):
     rc = spec["run_card"]
-    d = os.path.join(eng_base(),
-                     f"eng_run_{rc['run_number']:03d}_{rc['patient']}")
+    return f"eng_run_{rc['run_number']:03d}_{rc['patient']}"
+
+
+def _out_dir(spec, create=False):
+    d = os.path.join(eng_base(), run_dir_name(spec))
     if create:
         os.makedirs(d, exist_ok=True)
     return d
+
+
+def variant_dir(spec, name):
+    """On-disk dir for one ladder variant's saved weights.
+
+    Scoped per run (<VARBASE>/eng_run_<NNN>_<patient>_variants/<name>) so
+    two runs in one session/VARBASE never overwrite — or, via the ladder's
+    non-selected cleanup, delete — each other's weights. Kept as a SIBLING
+    of the artifact dir (not inside it) so downloading the artifacts folder
+    does not drag multi-GB weights along. ENG_VARBASE overrides the root.
+    """
+    base = os.environ.get("ENG_VARBASE") or eng_base()
+    return os.path.join(base, f"{run_dir_name(spec)}_variants", name)
 
 
 # NOTE (group review d2998a2): the old core._stage_boilerplate was deleted —
@@ -143,7 +160,41 @@ def load_patient(spec):
             pat["model_id"], dtype=dtype, revision=pat["revision"],
             device_map="auto")
     model.eval()
+    check_patient_compat(tok, model)
     return tok, model
+
+
+def check_patient_compat(tok, model):
+    """Fail at load time — before captures, probes or edits spend GPU time —
+    when the model lacks the module layout the engine reads and edits, or
+    the tokenizer has no chat template (every prompt is chat-wrapped)."""
+    problems = []
+    layers = getattr(getattr(model, "model", None), "layers", None)
+    if not layers:
+        problems.append("no model.model.layers decoder stack")
+    else:
+        l0 = layers[0]
+        for path in ("self_attn.o_proj", "mlp.down_proj"):
+            obj = l0
+            for part in path.split("."):
+                obj = getattr(obj, part, None)
+            if getattr(obj, "weight", None) is None:
+                problems.append(f"decoder layers have no {path} weight")
+    try:
+        final_norm_module(model)
+    except RuntimeError:
+        problems.append("no final norm module")
+    if model.get_output_embeddings() is None:
+        problems.append("no output embeddings (lm_head)")
+    if not getattr(tok, "chat_template", None):
+        problems.append("tokenizer has no chat template (use the model's "
+                        "-Instruct/-Chat variant)")
+    if problems:
+        arch = getattr(model.config, "model_type", type(model).__name__)
+        raise RuntimeError(
+            f"patient '{arch}' is not supported by this engine: "
+            + "; ".join(problems)
+            + ". Supported layout: Qwen2/Llama/Mistral-style decoders.")
 
 
 def structure_report(model):
@@ -241,6 +292,12 @@ def final_norm_module(model):
     return n
 
 
+def readout_norm_mode(spec):
+    """directions.readout_norm: 'double' (absent default; frozen Run-001
+    computation) or 'single' (norm applied once, the real lm_head input)."""
+    return (spec.get("directions") or {}).get("readout_norm", "double")
+
+
 # ---- probe scoring (v2-identical semantics: v1 scorer is the frozen
 # Run-001 parity contract — probe artifact `refused` grades are byte-diffed
 # by parity, so v1 NEVER changes. The opt-in v2 grader lives in
@@ -278,8 +335,7 @@ def is_degenerate(text):
     return False
 
 
-def generate(tok, model, prompt, max_new=200, markers=None):
-
+def generate(tok, model, prompt, max_new=200):
     wrapped = tok.apply_chat_template(
         [{"role": "user", "content": prompt}], tokenize=False,
         add_generation_prompt=True)
@@ -296,6 +352,7 @@ def run_probes(tok, model, prompts, tag="", max_new=200, markers=None,
     markers = markers or REFUSAL_MARKERS
     score = score_fn or refusal_score  # v1 frozen default; v2 opt-in
     rows = []
+    t_start = time.time()
     for j, p in enumerate(prompts):
         t0 = time.time()
         o = generate(tok, model, p, max_new=max_new)
@@ -303,9 +360,16 @@ def run_probes(tok, model, prompts, tag="", max_new=200, markers=None,
         rows.append({"i": j, "prompt": p, "output": o, "refused": r,
                      "degenerate": is_degenerate(o),
                      "gen_s": round(time.time() - t0, 1)})
+        left = (time.time() - t_start) / (j + 1) * (len(prompts) - j - 1)
         print(f"  [{tag} {j + 1}/{len(prompts)}] refused={r} "
-              f"({rows[-1]['gen_s']}s) {o[:70]!r}", flush=True)
+              f"({rows[-1]['gen_s']}s, ~{_fmt_eta(left)} left) "
+              f"{o[:70]!r}", flush=True)
     return rows
+
+
+def _fmt_eta(seconds):
+    s = int(round(seconds))
+    return f"{s // 60}m{s % 60:02d}s" if s >= 60 else f"{s}s"
 
 
 def summarize(rows_h, rows_b):
@@ -330,7 +394,6 @@ def run_baseline_and_hook_probes(spec, tok, model, out_dir):
     contract; parity gate unaffected. run_config/summary record the scope."""
     import torch
 
-    markers = resolve_markers(spec["probe_sets"]["refusal_markers"])
     markers, score_fn = session_grader(spec)
     n_probes = spec["probe_sets"]["n_probes"]
     ps = spec["probe_sets"]
@@ -361,7 +424,7 @@ def run_baseline_and_hook_probes(spec, tok, model, out_dir):
     if scope == "all":
         n_layers = model.config.num_hidden_layers
         for l in range(n_layers):
-            model.model.layers[l].register_forward_hook(hook)
+            hook.attach(model.model.layers[l])
         print(f"      hook scope=ALL ({n_layers} layers, L*={L_star})",
               flush=True)
     else:
@@ -392,7 +455,7 @@ class AblationHook:
         import torch
         r = torch.nn.functional.normalize(direction.float(), dim=0).to(device)
         self.r = r.to(dtype)
-        self.handle = None
+        self.handles = []  # one per attached module (scope=all -> many)
         self.calls = 0
 
     def __call__(self, module, inputs, output):
@@ -405,12 +468,13 @@ class AblationHook:
             else h_new
 
     def attach(self, module):
-        self.handle = module.register_forward_hook(self)
+        self.handles.append(module.register_forward_hook(self))
 
     def detach(self):
-        if self.handle:
-            self.handle.remove()
-            self.handle = None
+        """Remove EVERY registration (scope=all attaches one per layer)."""
+        for h in self.handles:
+            h.remove()
+        self.handles = []
 
 
 # ---- run_config + sha provenance ---------------------------------------------
@@ -436,6 +500,7 @@ def write_run_config(spec, out_dir, extra=None):
         "decoding": spec["decoding"],
         "gates": spec["gates"],
         "hooks": (spec.get("hooks") or {"scope": "selected"}),
+        "directions": {"readout_norm": readout_norm_mode(spec)},
         "ladder_variants": spec["ladder"]["variants"],
         # FTT-28: effective ARA config when an ara_<rank> variant is in the
         # ladder; null otherwise (always-present key mirrors hooks.scope).
@@ -513,6 +578,14 @@ def from_spec(spec):
         post_h0 = norm_mod(cap_harmless[n_layers].to(model.device)) \
             .float().cpu()
     dir_B, nd_B, coh_B = coherence_stats(post_h, post_h0)
+    # hidden_states[n_layers] is ALREADY post-final-norm (HF convention),
+    # so post_h above applies the norm a second time. That is the frozen
+    # Run-001 computation ("double", default — parity anchors depend on its
+    # bytes). directions.readout_norm: single uses the actual lm_head input.
+    readout_norm = readout_norm_mode(spec)
+    if readout_norm == "single":
+        dir_B, nd_B, coh_B = coherence_stats(
+            cap_harm[n_layers].float(), cap_harmless[n_layers].float())
     print(f"      best layer L{L_star} coh={best['coherence']} "
           f"(A: residual space); readout-space coh={coh_B:.3f} "
           f"|d|={nd_B:.2f}", flush=True)
@@ -535,18 +608,29 @@ def from_spec(spec):
     json.dump({"best": best, "table": table, "n_pairs": ps["n_pairs"],
                "final_layer": n_layers - 1, "structure": struct,
                "readout_space": {"coherence": coh_B,
-                                 "direction_norm": nd_B}},
+                                 "direction_norm": nd_B,
+                                 "readout_norm": readout_norm}},
               open(os.path.join(out_dir, "layer_coherence.json"), "w"),
               indent=2)
     print("      directions + captures saved", flush=True)
 
     base_sum, hook_sum = run_baseline_and_hook_probes(spec, tok, model,
                                                       out_dir)
-    write_run_config(spec, out_dir, extra={"structure": struct})
+    # "layer" is the block publish.py reads for the card (L*, residual and
+    # readout-space coherence) — it was never written before, so publish
+    # KeyError'd on every engine-produced run_config.json.
+    write_run_config(spec, out_dir, extra={
+        "structure": struct,
+        "layer": {"decoder_layer": L_star,
+                  "coherence": best["coherence"],
+                  "readout_space_final_layer_coherence": coh_B,
+                  "readout_norm": readout_norm}})
+    pkg_dir = os.path.dirname(os.path.abspath(__file__))
     json.dump({"eng_core.py": sha256_file(os.path.abspath(__file__)),
-               "eng_spec.py": sha256_file(os.path.abspath(
-                   __import__("abliteration_engine.spec",
-                              fromlist=["spec"]).__file__))},
+               "eng_spec.py": sha256_file(os.path.join(pkg_dir, "spec.py")),
+               **{f"eng_{m}.py": sha256_file(os.path.join(pkg_dir, f"{m}.py"))
+                  for m in ("data", "edits", "ara", "scoring_v2",
+                            "pipeline")}},
               open(os.path.join(out_dir, "harness_sha256.json"), "w"),
               indent=2)
 

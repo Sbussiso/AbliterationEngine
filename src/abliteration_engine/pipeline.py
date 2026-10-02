@@ -30,10 +30,16 @@ def _write_sentinel_exit(path, code):
         f.write(str(code))
 
 
-def _run_phase(fn, spec, exit_file, done_key):
-    """One sentinel-wrapped engine stage. Writes exit_code; returns rc."""
+def _run_phase(fn, spec, exit_file, done_key, final=True):
+    """One sentinel-wrapped engine stage. Writes exit_code; returns rc.
+
+    The sentinel reads "running" while the stage executes. A non-final
+    stage (stage A of a `run` that continues into the ladder) leaves it at
+    "running" on success, so a poller never sees "0" while stage B is
+    still going; failures always write the error code."""
     out_dir = core._out_dir(spec, create=True)
     os.makedirs(out_dir, exist_ok=True)
+    _write_sentinel_exit(exit_file, "running")
     rc = 1
     try:
         result = fn(spec)
@@ -51,7 +57,8 @@ def _run_phase(fn, spec, exit_file, done_key):
                 f.write(traceback.format_exc()[-8000:])
         except Exception:
             pass
-    _write_sentinel_exit(exit_file, rc)
+    _write_sentinel_exit(exit_file, "running" if rc == 0 and not final
+                         else rc)
     return rc
 
 
@@ -59,10 +66,12 @@ def run_pipeline(spec):
     """`abliterate run` — stage A, then stage B WHEN the spec has ladder
     variants. Hook-only specs stop after stage A (stage-5 gating)."""
     exit_file = core.sentinel_exit()
-    rc_a = _run_phase(core.from_spec, spec, exit_file, "RUN_DONE")
+    has_ladder = bool(spec["ladder"]["variants"])
+    rc_a = _run_phase(core.from_spec, spec, exit_file, "RUN_DONE",
+                      final=not has_ladder)
     if rc_a != 0:
         return rc_a
-    if not spec["ladder"]["variants"]:
+    if not has_ladder:
         print("stage B skipped: empty ladder (hook-only run)", flush=True)
         return 0
     from . import edits  # torch-bound module; deferred for CPU CLI paths

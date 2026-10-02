@@ -8,6 +8,16 @@ hook-only specs.
 
 Colab-side only; sentinel <eng_base>/mmlu_exit_code.txt + final line
 MMLU_DONE {summary} in the log (v2 contract preserved for the poll loop).
+
+Exit codes: 0 guardrail passed; 3 parse failure; 4 lm_eval missing;
+5 no selection.json; 6 guardrail FAILED (summary still written, publish
+refuses); otherwise lm_eval's own non-zero exit code.
+
+Banked resume: a side's prior results are reused only when they provably
+came from the same model — the results file's recorded model_args must
+match, and for the variant side the eng_provenance.json sidecar must match
+selection.json's selected variant + provenance fingerprint. Anything else
+is moved aside (<dir>.stale-<ts>) and re-evaluated.
 """
 import glob
 import json
@@ -38,6 +48,42 @@ def _parse_lm_eval(out_dir):
     return {"acc": acc, "acc_stderr": stderr, "subjects_seen": n_subj,
             "results_file": files[-1],
             "version": d.get("config", {}).get("lm_eval_version")}
+
+
+PROVENANCE_FILE = "eng_provenance.json"
+
+
+def _model_args_dict(ma):
+    if isinstance(ma, dict):
+        return {str(k): str(v) for k, v in ma.items()}
+    out = {}
+    for part in str(ma or "").split(","):
+        if "=" in part:
+            k, v = part.split("=", 1)
+            out[k.strip()] = v.strip()
+    return out
+
+
+def _reusable(odir, model_args, provenance):
+    """True iff odir's banked lm-eval results belong to this exact model."""
+    prior = _parse_lm_eval(odir)
+    if not prior or prior["acc"] is None:
+        return False
+    try:
+        cfg = json.load(open(prior["results_file"])).get("config", {})
+    except Exception:
+        return False
+    want, got = _model_args_dict(model_args), _model_args_dict(
+        cfg.get("model_args"))
+    if any(got.get(k) != want.get(k) for k in ("pretrained", "revision")):
+        return False
+    if provenance is None:
+        return True
+    try:
+        side = json.load(open(os.path.join(odir, PROVENANCE_FILE)))
+    except Exception:
+        return False
+    return side == provenance
 
 
 def mmlu_phase(spec_path):
@@ -98,14 +144,20 @@ def mmlu_phase(spec_path):
     out_base = os.path.join(out_dir, "mmlu_results", "base")
     out_var = os.path.join(out_dir, "mmlu_results", "variant")
 
-    def run_lm_eval(tag, model_args, odir):
+    def run_lm_eval(tag, model_args, odir, provenance=None):
         # banked-MMLU resume: a prior session may have already banked this
-        # side; reuse its results_*.json instead of re-burning 40+ min T4.
-        prior = _parse_lm_eval(odir)
-        if prior and prior["acc"] is not None:
+        # side; reuse its results_*.json instead of re-burning 40+ min T4 —
+        # but ONLY if they came from this exact model (see module doc).
+        if _reusable(odir, model_args, provenance):
+            prior = _parse_lm_eval(odir)
             logw(f"=== {tag}: BANKED RESUME (prior-session results reused, "
                  f"acc={prior['acc']:.4f})")
             return 0
+        if os.path.isdir(odir) and os.listdir(odir):
+            stale = f"{odir}.stale-{int(time.time())}"
+            os.rename(odir, stale)
+            logw(f"=== {tag}: prior results not provably from this model -> "
+                 f"moved aside to {stale}")
         cmd = [sys.executable, "-m", "lm_eval", "--model", "hf",
                "--model_args", model_args, "--tasks", "mmlu",
                "--num_fewshot", "0", "--batch_size", "auto",
@@ -121,10 +173,20 @@ def mmlu_phase(spec_path):
         if r.stderr:
             logw("--- stderr (tail 4000) ---")
             logw(r.stderr[-4000:])
+        if r.returncode == 0 and provenance is not None:
+            os.makedirs(odir, exist_ok=True)
+            with open(os.path.join(odir, PROVENANCE_FILE), "w") as f:
+                json.dump(provenance, f, indent=2)
         return r.returncode
 
     rc1 = run_lm_eval("base", base_args, out_base)
-    rc2 = run_lm_eval("variant", var_args, out_var)
+    var_prov = {"selected": sel["selected"],
+                "selected_variant_dir": sel["selected_variant_dir"],
+                # fingerprint only: cosmetic spec edits (repo_id, card text)
+                # change the spec sha but not the variant's weights
+                "fingerprint": (sel.get("selected_provenance") or {})
+                .get("fingerprint")}
+    rc2 = run_lm_eval("variant", var_args, out_var, provenance=var_prov)
 
     b, v = _parse_lm_eval(out_base), _parse_lm_eval(out_var)
     if not b or not v or b["acc"] is None or v["acc"] is None:
@@ -148,6 +210,12 @@ def mmlu_phase(spec_path):
                             "w"), indent=2)
     logw("MMLU_DONE " + json.dumps(summary))
     rc = rc1 if rc1 else rc2 if rc2 else 0
+    if rc == 0 and not delta_pp < max_loss:
+        logw(f"GUARDRAIL FAILED: MMLU loss {delta_pp:.2f}pp >= "
+             f"{max_loss}pp limit - STOP (publish will refuse)")
+        print(f"MMLU GUARDRAIL FAILED: loss {delta_pp:.2f}pp >= "
+              f"{max_loss}pp", flush=True)
+        rc = 6
     with open(exit_f, "w") as f:
         f.write(str(rc))
     return rc

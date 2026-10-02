@@ -121,7 +121,7 @@ Plain-English translation of that plan:
 
 > Nothing here is loaded or run yet. `plan` is completely safe.
 
-## Step 5 — The GPU session (10 minutes of watching)
+## Step 5 — The GPU session (about 20 minutes of watching)
 
 One cell:
 
@@ -134,8 +134,10 @@ One cell:
 sure nothing expensive ever runs by accident.)
 
 You'll watch it: download the model → capture chatter (a few minutes)
-→ find the direction → ask test questions. When you see `RUN_DONE`,
-stage A is complete.
+→ find the direction → ask test questions (each line shows `~Xs left`
+for that batch). When you see `RUN_DONE`, stage A is complete, and the
+same command carries straight on into the permanent surgeries (Step 5b)
+until it prints `LADDER_DONE`.
 
 **What happened in there?** The tool read the model's internal
 activations on each of 24 layers for 128 questions, found the one
@@ -151,23 +153,21 @@ direction off = 0%.
 > (next step) after each stage, and start a fresh session when Google
 > ends yours.
 
-## Step 5b — Make your model's surgery permanent (10 minutes)
+## Step 5b — What the second half did: permanent surgery
 
-The hook is temporary. To make a model file you can keep:
-
-```python
-!abliterate ladder --spec specs/run001_parity.yaml \
-  --i-know-this-spends-quota
-```
-
-`ladder` means: the tool tries a few different permanent surgeries,
-makes a fresh copy of the model for each, re-loads them to be sure the
-copies are correct, then asks the same test questions. Each attempt
+The hook is temporary. To make a model file you can keep, the second
+half of `run` (the "ladder") tried a few different permanent surgeries,
+made a fresh copy of the model for each, re-loaded them to be sure the
+copies are correct, then asked the same test questions. Each attempt
 becomes a file like `probes_wd_B.json`, and a judge within the tool
 (the "selection gate") picks the winner: the one that refuses the least
 *harmful* content while still serving *harmless* questions normally.
 (There's also a self-tuning surgery, `ara_<rank>` — Tutorial 2's ladder
 section introduces it; the default specs run the classic ladder.)
+
+If your session died mid-ladder, run the same command with `ladder` in
+place of `run`. That re-runs just this half, and finished surgeries are
+reused from disk (Tutorial 3).
 
 Then, the exam:
 
@@ -178,9 +178,14 @@ Then, the exam:
 
 This runs the MMLU knowledge test (57 subjects: history, law, medicine,
 …) on both the original and your surgically-modified copy. If your
-model got more than 3 percentage points dumber — the run halts and
-tells you. Our published models lost essentially nothing (the 7B one:
+model got 3 or more percentage points dumber, the exam stage fails
+(exit code 6, `GUARDRAIL FAILED` in the log) and `publish` will refuse
+to upload it. Our published models lost essentially nothing (the 7B one:
 71.77% → 71.77%, i.e. unchanged).
+
+> Shortcut for a long session: `abliterate run --with-mmlu …` does Step 5
+> and the exam in one go. On free Colab, keep them separate. Each one
+> fits the roughly one-hour session limit on its own.
 
 ## Step 6 — Check your results against the record (5 minutes)
 
@@ -200,6 +205,13 @@ Then grab your results: in Colab's file browser (folder icon, left),
 find `/content/eng_run_001_qwen2.5-0.5b`, right-click the folder →
 **Download**.
 
+The model *weights* from the ladder live in a separate folder next to
+it, `/content/eng_run_001_qwen2.5-0.5b_variants/`. Only the winning
+surgery is kept there (the others are deleted to save disk), and its
+exact path is written in `selection.json` as `selected_variant_dir`.
+It's large (about 1 GB for 0.5B), so download it only if you plan to
+publish from another machine.
+
 ## You did it — what do you have?
 
 A folder that contains:
@@ -207,7 +219,8 @@ A folder that contains:
 - the direction the model uses to refuse (`refusal_direction_*.npy`),
 - before/after report cards on how the model behaved
   (`probes_baseline.json`, `probes_hook_ablated.json`),
-- (if you ran the ladder) the permanent surgery recipes and their grades,
+- (if you ran the ladder) the permanent surgery recipes and their grades
+  — and, in the sibling `_variants` folder, the winning model's weights,
 - the knowledge exam results (`mmlu_summary.json`),
 - a receipt that ties it all to your exact settings
   (`run_config.json`).

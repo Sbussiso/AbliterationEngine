@@ -30,7 +30,7 @@ RUNNER_TEMPLATE = r"""#!/usr/bin/env bash
 # do not edit by hand; regenerate from the spec instead.
 set -euo pipefail
 BUNDLE_DIR="$(cd "$(dirname "$0")" && pwd)"
-PHASE="${{PHASE:-run}}"          # run | ladder | mmlu | publish (phase-split verbs)
+PHASE="${{PHASE:-run}}"          # run | ladder | mmlu | all (= run --with-mmlu)
 SPEC="{spec_name}"
 
 echo "[bundle] phase=$PHASE spec=$SPEC"
@@ -51,7 +51,8 @@ uv sync --frozen
 # sentinel writes — the poll loop contract is unchanged.
 export ENG_OUT_ROOT="${{ENG_OUT_ROOT:-/content}}"
 
-exec "$BUNDLE_DIR/.venv/bin/abliterate" "$PHASE" \
+if [ "$PHASE" = "all" ]; then set -- run --with-mmlu; else set -- "$PHASE"; fi
+exec "$BUNDLE_DIR/.venv/bin/abliterate" "$@" \
   --spec "$BUNDLE_DIR/specs/$SPEC" --i-know-this-spends-quota
 """
 
@@ -156,5 +157,5 @@ def _find_repo_root():
             return str(p)
         p = p.parent
     raise FileNotFoundError(
-        "repo root (pyproject.toml + uv.lock) not found from CWD; pass "
-        "--bundle-repo-root or run from inside the repo")
+        "repo root (pyproject.toml + uv.lock) not found from CWD; run "
+        "from inside the repo (or pass repo_root= to build_bundle)")

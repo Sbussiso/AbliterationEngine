@@ -58,36 +58,64 @@ pick Download — same thing, no code.)
 
 ## Habit 2 — Resume instead of restart
 
-Start a fresh session, re-install (Step 3 again), restore your banked
-files into the results folder, and re-run with the same verb. Example:
+Start a fresh session, re-install (Step 3 again), put your banked files
+back into the results folder, and re-run with the same verb. Example:
 your `ladder` got through 2 of 4 surgery attempts...
 
+First cell, re-install (`%cd` makes the folder change stick for the
+cells after it):
+
 ```python
-# fresh session: re-install, restore the banked work, then resume
-!git clone https://github.com/Sbussiso/abliteration.git && \
-  cd abliteration && pip install -q . && pip install -q lm-eval
-!cd /content/eng_run_001* && unzip -o artifacts.zip -d /content/restored && \
-  cp /content/restored/* /content/eng_run_001*/ && \
-  abliterate ladder --spec specs/run001_parity.yaml --i-know-this-spends-quota
+!git clone https://github.com/Sbussiso/abliteration.git
+%cd /content/abliteration
+!pip install -q . && pip install -q lm-eval
 ```
 
-The engine, before each surgery attempt, does the three-point disk
-check:
+Second, upload the `artifacts.zip` you downloaded earlier: drag it into
+the Colab file browser's `/content` folder, or run this cell and pick
+the file:
+
+```python
+from google.colab import files
+files.upload()          # saves it as /content/artifacts.zip
+```
+
+Third, restore it and resume:
+
+```python
+!mkdir -p /content/eng_run_001_qwen2.5-0.5b && \
+  unzip -o /content/artifacts.zip -d /content/eng_run_001_qwen2.5-0.5b
+!abliterate ladder --spec specs/run001_parity.yaml --i-know-this-spends-quota
+```
+
+Before each surgery attempt, the engine runs a three-point disk check:
 
 | Check | If it fails |
 |---|---|
 | right number of answer rows (both question sets) | re-run that variant |
 | every row has a verdict + full text | re-run |
-| (both checks pass) | **reuse it** — logs say `banked_resume` |
+| the file's provenance fingerprint matches this run (same refusal directions, question/grader settings, and surgery parameters) | re-run, because the file is stale |
+| (all checks pass) | **reuse it** — logs say `banked_resume` |
+
+Files banked by older versions of the tool have no fingerprint. They're
+still reused, but flagged `banked_provenance: unverified`.
 
 Half-written or corrupt file? Also re-run, silently and safely. The
 system is built to be *paranoid by default*: it would rather redo an
 hour than trust one shaky file.
 
-A variant whose answers are banked but whose modified model file
-didn't make it off the VM: the publish/exam stages will **refuse
-loudly** rather than pretend the model exists — you'll re-run that
-variant's save step, not its full measurement.
+One catch: banking saves a variant's *answers*, not its *weights*. The
+weights live in `/content/eng_run_001_qwen2.5-0.5b_variants/` and die
+with the session unless you downloaded them. If the winning variant was
+reused from the bank and its weights folder is gone, the `mmlu` exam
+can't load it and fails. Fix: delete that variant's `probes_<name>.json`
+from the results folder and run `ladder` again. Only that variant is
+rebuilt; the rest stay banked.
+
+The `mmlu` exam banks each side too, and only reuses an earlier score
+when it provably came from the same model (same pinned base, same
+selected variant and fingerprint). Anything else is moved aside to a
+`.stale-<time>` folder and re-run.
 
 The name-agnostic part matters when you mix surgeries: the resume
 check reads the probes file name (any variant — `wd_*` *or*
@@ -102,12 +130,13 @@ check reads the probes file name (any variant — `wd_*` *or*
 |---|---|
 | under 45 min | one stage per session, done |
 | 45–55 min (L4) | ladder + start of the exam; bank between |
-| over an hour | **split it**: one verb per session (`run`, then `ladder`, then `mmlu`) |
+| over an hour | **split it**: one verb per session (`run`, then `mmlu`; if `run` died mid-ladder, `ladder` picks it up) |
 | "the whole mission at once" | resist. you'll die mid-flight and pay twice |
 
 The GPU verbs are the practical splitter, one at a time:
-`run` (measure), `ladder` (surgeries), `mmlu` (exam). Each is designed
-to be a complete, resume-able unit. (`publish` is the local-CPU
+`run` (measure, then surgeries), `ladder` (surgeries only), `mmlu`
+(exam). Each is designed to be a complete, resume-able unit. On a paid
+session with no hour limit, `run --with-mmlu` chains them all. (`publish` is the local-CPU
 exception — it runs on whatever session you're sitting at, no GPU.)
 
 Bigger GPUs don't buy you a longer timer — it's roughly an hour on T4,
@@ -122,9 +151,14 @@ When you resume, the three-point check above catches every such file
 and redoes it. To peek at exactly how far a phase got before dying:
 
 ```python
-!tail -30 phase_out.log          # last lines before the kill
-!ls eng_run_001*                 # which result files exist + sizes
+!cat /content/exit_code.txt          # "running" = killed mid-stage, "0" = finished
+!ls -la /content/eng_run_001*/       # which result files exist + sizes
+!cat /content/eng_run_001*/*_error.txt   # traceback, if a stage crashed (not killed)
 ```
+
+Want the full printed log to survive too? Run the verb with
+`2>&1 | tee /content/phase_out.log` on the end, and include that file
+in your download.
 
 A useful tip: answers that were flagged "refused" and took under a
 second to generate are real refusals (a model saying "no" instantly is

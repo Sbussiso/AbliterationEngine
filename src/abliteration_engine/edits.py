@@ -15,6 +15,7 @@ gates.publish_refusal. MMLU guardrail is enforced later by eng/mmlu.py
 before any publish.
 """
 import gc
+import hashlib
 import json
 import os
 import shutil
@@ -45,7 +46,13 @@ def orthogonalize_lm_head(model, direction):
 
 def orthogonalize_final_norm(model, direction):
     """w <- w - (w.d) d on the final RMSNorm weight (readout-space
-    direction). Returns (w.d before, |w_new . d| after edit-in-fp32)."""
+    direction). Returns (w.d before, |w_new . d| after edit-in-fp32).
+
+    Heuristic, not an exact projection: the norm output is w * x_hat, whose
+    component along d is sum_i w_i x_hat_i d_i — zero only for every input
+    if w * d = 0, which w.d = 0 does not imply. Kept as-is (frozen ladder
+    semantics; wd_BN/wd_ML_BN results and parity depend on it); the exact
+    readout removal is the lm_head edit that always accompanies it."""
     n = core.final_norm_module(model)
     d = direction.detach().float().cpu()
     d = d / d.norm()
@@ -139,7 +146,7 @@ def verify_layers_disk(model_r, layers, dirs_np, bound=1e-2):
 
 
 def run_variant(name, edit_fn, out_dir, expect_tied, verify_fn, spec,
-                tok_source_model=None):
+                tok_source_model=None, provenance=None):
     """Fresh base load -> edit -> save -> RELOAD from disk -> verify ->
     probe. Returns summary dict; dumps probes_<name>.json.
     (tok_source_model retained for call compatibility; the reloaded model
@@ -181,9 +188,7 @@ def run_variant(name, edit_fn, out_dir, expect_tied, verify_fn, spec,
     s["on_disk_verify"] = disk
     s["tie_flag_on_disk"] = flag
     s["wall_s"] = round(time.time() - t0, 1)
-    json.dump({"harmful": r_h, "harmless": r_b},
-              open(os.path.join(core._out_dir(spec),
-                                f"probes_{name}.json"), "w"), indent=2)
+    write_variant_probes(spec, name, r_h, r_b, provenance)
     print(f"      {name} reloaded: refusal={s['refusal_rate']} "
           f"benign={s['benign_preserved']} "
           f"degenerate={s['degenerate_total']}", flush=True)
@@ -193,14 +198,55 @@ def run_variant(name, edit_fn, out_dir, expect_tied, verify_fn, spec,
     return s
 
 
+def write_variant_probes(spec, name, r_h, r_b, provenance=None):
+    """probes_<name>.json; `_provenance` (when given) is what banked resume
+    checks before trusting the file in a later session."""
+    payload = {"harmful": r_h, "harmless": r_b}
+    if provenance is not None:
+        payload["_provenance"] = provenance
+    with open(os.path.join(core._out_dir(spec), f"probes_{name}.json"),
+              "w") as f:
+        json.dump(payload, f, indent=2)
+
+
+def _arr_sha(a):
+    a = np.ascontiguousarray(np.asarray(a))
+    return hashlib.sha256(str(a.dtype).encode() + str(a.shape).encode()
+                          + a.tobytes()).hexdigest()
+
+
+def variant_provenance(spec, name, k_layers, dir_arrays):
+    """Everything a variant's probe results depend on: pinned patient,
+    probe/grader/decoding config, the stage-A arrays it edits with, and
+    its own edit parameters. Banked results whose fingerprint differs are
+    NOT reused (a re-run stage A, a marker_mode change, new k-layers or a
+    new ARA config would otherwise silently reuse stale probes)."""
+    ps = spec["probe_sets"]
+    basis = {
+        "variant": name,
+        "patient": [spec["patient"]["model_id"], spec["patient"]["revision"]],
+        "probes": [ps["harmful"], ps["harmless"], ps["n_probes"],
+                   ps["refusal_markers"], ps.get("marker_mode", "v1")],
+        "decoding": spec["decoding"],
+        "k_layers": k_layers,
+        "ara": (spec["ladder"].get("ara") if name.startswith("ara_")
+                else None),
+        "arrays": {k: _arr_sha(v) for k, v in sorted(dir_arrays.items())},
+    }
+    blob = json.dumps(basis, sort_keys=True, default=str).encode()
+    return {"fingerprint": hashlib.sha256(blob).hexdigest(),
+            "spec_sha256": spec.get("_spec_sha256")}
+
+
 def select_variant(candidates, base_preserved, publish_refusal,
-                   floor_delta=0.10):
+                   floor_delta=0.10, degenerate_max=0):
     """Deterministic selection over gate-passers with tie-break ladder
-    order; publish_eligible only when the gate passed AND refusal < 
-    publish_refusal. Gate threshold comes from spec gates.benign_floor_delta."""
+    order; publish_eligible only when the gate passed AND refusal <
+    publish_refusal. Gate thresholds come from spec gates.benign_floor_delta
+    and gates.degenerate_max."""
     for c in candidates:
         c["passes_gate"] = (c["benign_preserved"] >= base_preserved - floor_delta
-                            and c["degenerate_total"] == 0)
+                            and c["degenerate_total"] <= degenerate_max)
     gated = [c for c in candidates if c["passes_gate"]]
     if gated:
         selected = min(gated, key=lambda c: (c["refusal_rate"],
@@ -214,13 +260,19 @@ def select_variant(candidates, base_preserved, publish_refusal,
     return selected, eligible
 
 
-def _banked_variant_summary(spec, name):
+def _banked_variant_summary(spec, name, provenance=None):
     """Resume short-circuit (2026-09-30, 3x Colab registry drops): if a
     COMPLETE probes_<name>.json from a prior session exists in the run
     out_dir, reuse it instead of re-editing + re-probing. Complete = both
-    sides have exactly n_probes rows, every row has the grader fields, and
-    on-disk variant dir exists with a loadable config. Returns summary or
-    None (never raises -> corrupt files re-run normally)."""
+    sides have exactly n_probes rows and every row has the grader fields
+    (the variant's weights dir is NOT required — see the NOTE below).
+    Returns summary or None (never raises -> corrupt files re-run normally).
+
+    Provenance: when the caller passes the variant's expected provenance
+    and the banked file carries a different fingerprint, the file is stale
+    (stage A re-ran, grader/probe config or edit params changed) and is
+    NOT reused. Files banked before provenance existed carry none: they are
+    reused, flagged `banked_provenance: unverified` in the summary."""
     import json as _json
     import os as _os
     out_dir = core._out_dir(spec)
@@ -236,20 +288,29 @@ def _banked_variant_summary(spec, name):
         if not all(x.get("refused") is not None and x.get("output")
                    for x in r_h + r_b):
             return None
+        banked_prov = d.get("_provenance")
+        if provenance is not None and banked_prov is not None and \
+                banked_prov.get("fingerprint") != provenance["fingerprint"]:
+            print(f"      banked_resume skip {name}: provenance mismatch "
+                  "(stale probes from a different stage A / config)",
+                  flush=True)
+            return None
         # NOTE: variant dir on disk intentionally NOT required — probes-only
-        # banked resume is safe because publish/MMLU refuse loudly if the
-        # SELECTED variant's dir is absent (realistic winner at 1.5B is
-        # wd_ML, which is always freshly built on the resuming session).
+        # banked resume never fabricates weights: if the SELECTED variant
+        # was banked and its dir is gone, mmlu fails to load it and publish
+        # refuses ("missing variant dir"). Rebuild by deleting that
+        # variant's probes file and re-running the ladder (Tutorial 3).
         base = _json.load(open(_os.path.join(out_dir, "probes_baseline.json")))
         core.summarize(base["harmful"], base["harmless"])  # baseline sanity: file parses + rows keyed
         s = core.summarize(r_h, r_b)
         s["banked_resume"] = True
+        s["banked_provenance"] = ("verified" if banked_prov is not None
+                                  and provenance is not None
+                                  else "unverified")
         s["edit_info"] = {"banked_resume": "probes restored from prior "
                           "session; edit+save+verify skipped"}
         s["on_disk_verify"] = {"banked_resume": "variant dir from disk"
-                               if _os.path.isdir(_os.path.join(
-                                   _os.environ.get("ENG_VARBASE")
-                                   or core.eng_base(), name))
+                               if _os.path.isdir(core.variant_dir(spec, name))
                                else "PROBES_ONLY (variant dir absent)"}
         s["tie_flag_on_disk"] = None
         return s
@@ -296,8 +357,7 @@ def run_ladder(spec, ctx):
           f"baseline_refusal={base_sum['refusal_rate']} "
           f"benign={base_pres}", flush=True)
 
-    VARBASE = os.environ.get("ENG_VARBASE") or core.eng_base()
-    VAR_DIRS = {v: f"{VARBASE}/{v}" for v in variants}
+    VAR_DIRS = {v: core.variant_dir(spec, v) for v in variants}
 
     # v1 amendment (FTT-28): ara_<rank> variants route to the ARA optimizer
     # (src/abliteration_engine/ara.py). Resolved here so the ladder log
@@ -377,13 +437,23 @@ def run_ladder(spec, ctx):
     # (tie expectations are name-keyed via expect_tied_for(); ara_* keeps
     # the tie — decoder-layer edits only)
 
+    # per-variant provenance: what each variant's probes depend on
+    _k = {"wd_B": [], "wd_BN": [], "wd_ML": k_layers_primary,
+          "wd_ML_BN": k_layers_combo}
+    _arrs = {"wd_B": {"dir_B": dir_B.numpy()},
+             "wd_BN": {"dir_B": dir_B.numpy()},
+             "wd_ML": {"dirs": dirs_all},
+             "wd_ML_BN": {"dirs": dirs_all, "dir_B": dir_B.numpy()}}
+    prov = {v: variant_provenance(spec, v, _k.get(v, []), _arrs.get(v, {}))
+            for v in variants}
+
     summ = {}
     step = 2
     for name in variants:
         if name == "wd_ML_BN" or name.startswith("ara_"):
             continue  # conditional combos + ARA, after the others
         print(f"[{step}/6] {name}", flush=True)
-        banked = _banked_variant_summary(spec, name)
+        banked = _banked_variant_summary(spec, name, prov[name])
         if banked is not None:
             print(f"      {name}: BANKED RESUME (complete prior-session "
                   f"probes reused; refusal={banked['refusal_rate']} "
@@ -394,7 +464,7 @@ def run_ladder(spec, ctx):
             continue
         summ[name] = run_variant(name, edit_fns[name], VAR_DIRS[name],
                                  expect_tied_for(name), verify_fns[name],
-                                 spec, ctx["model"])
+                                 spec, ctx["model"], provenance=prov[name])
         step += 1
 
     # conditional max-intervention combo per v2 semantics
@@ -410,7 +480,7 @@ def run_ladder(spec, ctx):
             summ["wd_ML_BN"] = run_variant(
                 "wd_ML_BN", edit_fns["wd_ML_BN"], VAR_DIRS["wd_ML_BN"],
                 expect_tied_for("wd_ML_BN"), verify_fns["wd_ML_BN"], spec,
-                ctx["model"])
+                ctx["model"], provenance=prov["wd_ML_BN"])
         else:
             print(f"[{step}/6] wd_ML_BN skipped: best of V1..V3 = {best3} "
                   f"< {spec['gates']['publish_refusal']}", flush=True)
@@ -421,7 +491,7 @@ def run_ladder(spec, ctx):
     # (banked resume, tie handling, selection) treats it like any variant.
     if ara_name is not None and ara_name in variants:
         print(f"[{step}/6] {ara_name} (ARA optimizer)", flush=True)
-        banked = _banked_variant_summary(spec, ara_name)
+        banked = _banked_variant_summary(spec, ara_name, prov[ara_name])
         if banked is not None:
             print(f"      {ara_name}: BANKED RESUME (complete prior-session "
                   f"probes reused; refusal={banked['refusal_rate']} "
@@ -430,7 +500,7 @@ def run_ladder(spec, ctx):
             summ[ara_name] = banked
         else:
             summ[ara_name] = ara_mod.run_ara_variant(
-                spec, ara_name, ara_cfg)
+                spec, ara_name, ara_cfg, provenance=prov[ara_name])
         step += 1
 
     print(f"[{step + 1}/6] selection + artifacts", flush=True)
@@ -445,7 +515,8 @@ def run_ladder(spec, ctx):
                       "degenerate_total": s["degenerate_total"]})
     selected, eligible = select_variant(
         cands, base_pres, spec["gates"]["publish_refusal"],
-        floor_delta=spec["gates"]["benign_floor_delta"])
+        floor_delta=spec["gates"]["benign_floor_delta"],
+        degenerate_max=spec["gates"].get("degenerate_max", 0))
     print(f"      selection: {selected['variant']} "
           f"(gate={'passed' if selected['passes_gate'] else 'failed'}, "
           f"publish_eligible={eligible})", flush=True)
@@ -469,6 +540,9 @@ def run_ladder(spec, ctx):
                             and summ[selected["variant"]].get("banked_resume")),
                    "banked_resume_variants":
                        [v for v, s in summ.items() if s.get("banked_resume")],
+                   # what produced the selected variant's weights/probes;
+                   # mmlu.py keys its banked-results reuse on this
+                   "selected_provenance": prov[selected["variant"]],
                    "publish_eligible_probe_gate": eligible,
                    "publish_refusal_threshold":
                        spec["gates"]["publish_refusal"],

@@ -46,6 +46,7 @@ def _mk_spec(n_probes=64):
             "n_probes": n_probes,
             "harmful": "builtin:primary64_harmful",
             "harmless": "builtin:primary64_harmless",
+            "refusal_markers": "builtin:fp_explicit_v1",
         },
         "patient": {"model_id": "Qwen/Qwen2.5-1.5B-Instruct",
                     "revision": "989aa7980e4cf806f80c7fef2b1adb7bc71aa306"},
@@ -126,3 +127,79 @@ def test_banked_resume_missing_file_rerun():
             assert edits._banked_variant_summary(spec, "wd_B") is None
         finally:
             core._out_dir = orig
+
+# ---- provenance (code review: stale banked probes were reused blindly) ----
+
+def _with_out(out):
+    orig = core._out_dir
+    core._out_dir = lambda spec, create=False: out  # noqa: E731
+    return orig
+
+
+def _bank_with_provenance(out, prov):
+    p = os.path.join(out, "probes_wd_B.json")
+    d = json.load(open(p))
+    d["_provenance"] = prov
+    json.dump(d, open(p, "w"))
+
+
+def test_banked_resume_provenance_mismatch_reruns():
+    import numpy as np
+    with tempfile.TemporaryDirectory() as tmp:
+        out = _mk_out_dir(tmp)
+        spec = _mk_spec()
+        spec["decoding"] = {"max_new_tokens": 200, "seed": 0}
+        spec["ladder"] = {"variants": ["wd_B"]}
+        old = edits.variant_provenance(spec, "wd_B", [],
+                                       {"dir_B": np.ones(4)})
+        new = edits.variant_provenance(spec, "wd_B", [],
+                                       {"dir_B": np.arange(4.0)})
+        assert old["fingerprint"] != new["fingerprint"]
+        _bank_with_provenance(out, old)
+        orig = _with_out(out)
+        try:
+            assert edits._banked_variant_summary(spec, "wd_B", new) is None, \
+                "stale probes (different stage-A direction) must re-run"
+            s = edits._banked_variant_summary(spec, "wd_B", old)
+            assert s is not None and s["banked_provenance"] == "verified"
+        finally:
+            core._out_dir = orig
+
+
+def test_banked_resume_legacy_file_flagged_unverified():
+    import numpy as np
+    with tempfile.TemporaryDirectory() as tmp:
+        out = _mk_out_dir(tmp)  # no _provenance key: pre-fix banked file
+        spec = _mk_spec()
+        spec["decoding"] = {"max_new_tokens": 200, "seed": 0}
+        spec["ladder"] = {"variants": ["wd_B"]}
+        prov = edits.variant_provenance(spec, "wd_B", [],
+                                        {"dir_B": np.ones(4)})
+        orig = _with_out(out)
+        try:
+            s = edits._banked_variant_summary(spec, "wd_B", prov)
+            assert s is not None and s["banked_provenance"] == "unverified"
+        finally:
+            core._out_dir = orig
+
+
+def test_marker_mode_change_changes_fingerprint():
+    import numpy as np
+    spec = _mk_spec()
+    spec["decoding"] = {"max_new_tokens": 200, "seed": 0}
+    spec["ladder"] = {"variants": ["wd_B"]}
+    spec["probe_sets"]["refusal_markers"] = "builtin:fp_explicit_v1"
+    a = edits.variant_provenance(spec, "wd_B", [], {"dir_B": np.ones(4)})
+    spec["probe_sets"]["marker_mode"] = "v2"
+    b = edits.variant_provenance(spec, "wd_B", [], {"dir_B": np.ones(4)})
+    assert a["fingerprint"] != b["fingerprint"]
+
+
+def test_select_variant_honors_degenerate_max():
+    def cands():
+        return [{"variant": "wd_B", "ladder_index": 0, "refusal_rate": 0.1,
+                 "benign_preserved": 1.0, "degenerate_total": 1}]
+    sel, _ = edits.select_variant(cands(), 1.0, 0.25, degenerate_max=0)
+    assert sel["passes_gate"] is False
+    sel, ok = edits.select_variant(cands(), 1.0, 0.25, degenerate_max=1)
+    assert sel["passes_gate"] is True and ok is True
