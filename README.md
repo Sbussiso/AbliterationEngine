@@ -143,9 +143,10 @@ papers/                    ← draft manuscript + figures (FTT-13)
 
 ### Run-dir index
 
-`qwen2.5-*` dirs follow `<patient>-<run>`; a bare patient dir predates the
-numbering. Weights/checkpoints are never committed (`.gitignore`); the
-committed parts are the readable record.
+`qwen2.5-*` dirs follow `<patient>-<NNN>` where **NNN is the mission id, not
+the run number** — the [CHANGELOG](CHANGELOG.md) reconciles all mappings
+(run 001 lives in `-002`, run 002 in `-003`, …). Weights/checkpoints are
+never committed (`.gitignore`); the committed parts are the readable record.
 
 | Dir | What | Patient | Outcome |
 |---|---|---|---|
@@ -155,7 +156,7 @@ committed parts are the readable record.
 | `qwen2.5-0.5b-005` | **Run 004** — refusalbench selective-refusal paper | 0.5B | completed |
 | `qwen2.5-0.5b-006` | **Run 006** — v3 path validation (recreates Run 000) | 0.5B | completed |
 | `qwen2.5-7b-001` | **7B run** (spec `run_number 5`) | 7B | published → [7B](https://huggingface.co/sbussiso/Qwen2.5-7B-abliterated) |
-| `qwen2.5-1.5b-003` | **Run 002** — current frontier work (FTT-13) | 1.5B | in progress |
+| `qwen2.5-1.5b-003` | **Run 002** — multi-site persistent ladder (FTT-13) | 1.5B | completed — publish gated off (see [papers/](papers/ftt13_run002_LINEARBODY.md)) |
 
 ## Operating notes
 
@@ -193,5 +194,8 @@ committed parts are the readable record.
 ## Status
 
 Engine v3 runs real patients end-to-end with CI-gated packaging and two
-published models. Open: finish Run 002 (1.5B) publish; end-of-FTT-20 shim
-deletion.
+published models. **Run 002 (1.5B) is complete** — the K=5 persistent edit
+cut harmful refusals 98.4% → 34.4% but does not meet the repo's own ≤25%
+publish bar, so no 1.5B model is published (verdict + analysis:
+[papers/ftt13_run002_LINEARBODY.md](papers/ftt13_run002_LINEARBODY.md)).
+Open: end-of-FTT-20 shim deletion; optional deeper-ladder round at 1.5B.
