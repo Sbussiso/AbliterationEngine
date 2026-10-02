@@ -95,21 +95,26 @@ start with [your first ablated model](tutorials/01_first_ablated_model.md).
 
 | Verb | Needs GPU | What it does |
 |---|---|---|
+| `init` | no | write a starter spec for any HF model: pins the revision, fills the shape check, flags unsupported architectures |
 | `plan` | no | print the full stage plan for a spec — zero side effects |
 | `validate` | no | fail-fast spec check (pinned revisions, gate ordering, …) |
-| `run` | yes | stage A: capture → direction scan → baseline + hook probes |
-| `ladder` | yes | stage B: persistent-edit variants, each edit→save→reload→verify→probe |
+| `run` | yes | stage A (capture → direction scan → baseline + hook probes), then the stage-B ladder; `--with-mmlu` chains the guardrail too |
+| `ladder` | yes | stage B only (resume): persistent-edit variants, each edit→save→reload→verify→probe |
 | `mmlu` | yes | guardrail: identical lm-eval config both sides, <3pp loss gate |
-| `publish` | no | verify ALL gates locally, then push weights + card to HF |
+| `publish` | no | verify ALL gates locally, then push weights + card to HF (finds the winner and MMLU summary from the run's records) |
 | `parity` | no | strict diff vs a known-good baseline run (fails loudly, never fakes) |
 | `bundle` | no | freeze engine+spec+runner into a sha256'd tarball for Colab |
 
 Every GPU verb requires explicit `--i-know-this-spends-quota`; `publish`
-additionally requires `--i-know-this-publishes`.
+additionally requires `--i-know-this-publishes`. `abliterate <verb> -h`
+lists a verb's options. Spec mistakes come back as one `REFUSING:` line,
+and an unsupported model architecture is refused right after loading,
+before any heavy GPU work.
 
 ## Writing your own run
 
-Copy `specs/run001_parity.yaml` and edit the run-specific fields — the spec
+Start with `abliterate init --model <hf-id>` (or copy
+`specs/run001_parity.yaml`) and edit the run-specific fields — the spec
 schema is `spec_version, run_card, patient, probe_sets, decoding, ladder,
 gates, publish, hitl, colab`, with fail-fast validation on load:
 
@@ -184,7 +189,7 @@ outcomes for the program so far:
 ## Operating notes
 
 - **Colab flow:** `abliterate bundle` → upload tarball → `bash runner.sh`
-  (`PHASE=run|ladder|mmlu|publish`) → poll `exit_code.txt` /
+  (`PHASE=run|ladder|mmlu|all`, where `all` = `run --with-mmlu`) → poll `exit_code.txt` /
   `ENG<STAGE>_DONE` / `<stage>_error.txt` sentinels (written by the engine,
   never the runner — contract-tested) → pull → verify per-file hashes
   against `bundle_meta.json` before trusting anything.

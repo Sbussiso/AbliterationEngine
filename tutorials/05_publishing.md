@@ -42,8 +42,6 @@ laptop with `uv`:
 ```bash
 uv run --no-sync abliterate publish \
     --spec specs/my_first_run.yaml \
-    --variant-dir <the-winner's-model-folder> \
-    --mmlu <results-folder>/mmlu_summary.json \
     --i-know-this-publishes
 ```
 
@@ -53,8 +51,6 @@ the tool is already installed there):
 ```python
 !abliterate publish \
     --spec specs/my_first_run.yaml \
-    --variant-dir <the-winner's-model-folder> \
-    --mmlu <results-folder>/mmlu_summary.json \
     --i-know-this-publishes
 ```
 
@@ -71,13 +67,17 @@ You'll need your Hugging Face token in the session either way —
 (The first command installs the tools; the second opens the login
 prompt — paste your token from [hf.co/settings/tokens](https://huggingface.co/settings/tokens).)
 
-- `--variant-dir`: the folder the ladder saved the winning variant to.
-  It's `selected_variant_dir` in `selection.json`, e.g.
-  `/content/eng_run_001_qwen2.5-0.5b_variants/wd_B`, and the files must be
-  on the disk of the machine you're publishing from. If you moved them,
-  point `--variant-dir` at the new spot *and* update
-  `selected_variant_dir` to match, or lock 5 refuses.
-- `--mmlu`: the exam summary from Tutorial 1 Step 5b.
+The tool finds both inputs itself from the run's records:
+
+- the winner's weights: `selected_variant_dir` in `selection.json`, e.g.
+  `/content/eng_run_001_qwen2.5-0.5b_variants/wd_B`. They must be on the
+  disk of the machine you're publishing from. If you moved them, pass
+  `--variant-dir <new spot>` *and* update `selected_variant_dir` to
+  match, or lock 5 refuses.
+- the exam summary: `mmlu_summary.json` in the results folder (from
+  Tutorial 1 Step 5b). Kept it somewhere else? Pass `--mmlu <path>`.
+  No summary at all means publishing stops with `PUBLISH BLOCKED` and
+  tells you to run `abliterate mmlu` first.
 
 If any lock fails: **nothing uploads.** The error names the exact
 gate. Fix the run (or the variant), don't the gate.

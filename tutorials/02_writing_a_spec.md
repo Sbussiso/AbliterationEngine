@@ -24,16 +24,31 @@ did we use?"
 
 ---
 
-## Copy the starter and look at it
+## Get a starter spec
+
+**Easiest: let the tool write it.** Give it any model on Hugging Face:
 
 ```bash
-cd abliteration          # (from Tutorial 1 — or run these checks in a Colab cell,
-                         #   same repo, just prefix the commands with !)
+cd abliteration          # (from Tutorial 1 — or run this in a Colab cell,
+                         #   same repo, just prefix the command with !)
+abliterate init --model Qwen/Qwen2.5-1.5B-Instruct --out specs/my_first_run.yaml
+```
+
+`init` looks the model up on the hub and fills in the two fiddly parts
+for you: the exact version pin (`revision`) and the model-shape check
+(`structure_expect`). It also tells you right away if the model's
+architecture isn't one this tool supports, or if it has no chat template.
+If you're logged in to Hugging Face, it even fills `publish.repo_id` with
+your account name.
+
+**Or copy a shipped one** (works offline):
+
+```bash
 cp specs/run001_parity.yaml specs/my_first_run.yaml
 ```
 
-Open `specs/my_first_run.yaml` in any text editor. Here's what each
-part means, one block at a time.
+Either way, open `specs/my_first_run.yaml` in any text editor. Here's
+what each part means, one block at a time.
 
 ---
 

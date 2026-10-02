@@ -115,10 +115,13 @@ def test_pre_verb_flags_not_clobbered(monkeypatch):
                         lambda s, out_dir: seen.update(out=out_dir) or 0)
     cli.main(["--out-dir", "XYZ", "--spec", RUN001, "bundle"])
     assert seen["out"] == "XYZ"
-    monkeypatch.setattr(cli, "run",
-                        lambda s, yes: seen.update(yes=yes) or 0)
-    cli.main(["--i-know-this-spends-quota", "--spec", RUN001, "run"])
-    assert seen["yes"] is True
+    monkeypatch.setattr(
+        cli, "run",
+        lambda s, yes, with_mmlu=False: seen.update(ran=True) or 0)
+    # quota flag BEFORE the verb must still pass the quota gate
+    assert cli.main(["--i-know-this-spends-quota", "--spec", RUN001,
+                     "run"]) == 0
+    assert seen.get("ran") is True
 
 
 # ---- pipeline sentinel ----------------------------------------------------------

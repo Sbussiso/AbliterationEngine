@@ -160,7 +160,41 @@ def load_patient(spec):
             pat["model_id"], dtype=dtype, revision=pat["revision"],
             device_map="auto")
     model.eval()
+    check_patient_compat(tok, model)
     return tok, model
+
+
+def check_patient_compat(tok, model):
+    """Fail at load time — before captures, probes or edits spend GPU time —
+    when the model lacks the module layout the engine reads and edits, or
+    the tokenizer has no chat template (every prompt is chat-wrapped)."""
+    problems = []
+    layers = getattr(getattr(model, "model", None), "layers", None)
+    if not layers:
+        problems.append("no model.model.layers decoder stack")
+    else:
+        l0 = layers[0]
+        for path in ("self_attn.o_proj", "mlp.down_proj"):
+            obj = l0
+            for part in path.split("."):
+                obj = getattr(obj, part, None)
+            if getattr(obj, "weight", None) is None:
+                problems.append(f"decoder layers have no {path} weight")
+    try:
+        final_norm_module(model)
+    except RuntimeError:
+        problems.append("no final norm module")
+    if model.get_output_embeddings() is None:
+        problems.append("no output embeddings (lm_head)")
+    if not getattr(tok, "chat_template", None):
+        problems.append("tokenizer has no chat template (use the model's "
+                        "-Instruct/-Chat variant)")
+    if problems:
+        arch = getattr(model.config, "model_type", type(model).__name__)
+        raise RuntimeError(
+            f"patient '{arch}' is not supported by this engine: "
+            + "; ".join(problems)
+            + ". Supported layout: Qwen2/Llama/Mistral-style decoders.")
 
 
 def structure_report(model):
@@ -318,6 +352,7 @@ def run_probes(tok, model, prompts, tag="", max_new=200, markers=None,
     markers = markers or REFUSAL_MARKERS
     score = score_fn or refusal_score  # v1 frozen default; v2 opt-in
     rows = []
+    t_start = time.time()
     for j, p in enumerate(prompts):
         t0 = time.time()
         o = generate(tok, model, p, max_new=max_new)
@@ -325,9 +360,16 @@ def run_probes(tok, model, prompts, tag="", max_new=200, markers=None,
         rows.append({"i": j, "prompt": p, "output": o, "refused": r,
                      "degenerate": is_degenerate(o),
                      "gen_s": round(time.time() - t0, 1)})
+        left = (time.time() - t_start) / (j + 1) * (len(prompts) - j - 1)
         print(f"  [{tag} {j + 1}/{len(prompts)}] refused={r} "
-              f"({rows[-1]['gen_s']}s) {o[:70]!r}", flush=True)
+              f"({rows[-1]['gen_s']}s, ~{_fmt_eta(left)} left) "
+              f"{o[:70]!r}", flush=True)
     return rows
+
+
+def _fmt_eta(seconds):
+    s = int(round(seconds))
+    return f"{s // 60}m{s % 60:02d}s" if s >= 60 else f"{s}s"
 
 
 def summarize(rows_h, rows_b):

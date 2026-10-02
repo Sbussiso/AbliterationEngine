@@ -57,8 +57,12 @@ def summarize_probes(artifacts, name):
             "degenerate_total": deg}
 
 
-def publish_phase(spec_path, variant_dir, mmlu_json, assume_publish=False):
-    """`abliterate publish` — full gate chain + card + push + verify."""
+def publish_phase(spec_path, variant_dir=None, mmlu_json=None,
+                  assume_publish=False):
+    """`abliterate publish` — full gate chain + card + push + verify.
+
+    variant_dir / mmlu_json default to what the run recorded:
+    selection.json's selected_variant_dir and <run dir>/mmlu_summary.json."""
     from . import core
     from .spec import load_spec
 
@@ -75,8 +79,15 @@ def publish_phase(spec_path, variant_dir, mmlu_json, assume_publish=False):
               " target and card preview (contract: no unapproved pushes)")
         return 2
 
-    A, VDIR = out_dir, variant_dir
+    A = out_dir
     sel = json.load(open(os.path.join(A, "selection.json")))
+    VDIR = variant_dir or sel.get("selected_variant_dir")
+    _gate(VDIR, "no --variant-dir given and selection.json records no "
+                "selected_variant_dir")
+    mmlu_json = mmlu_json or os.path.join(A, "mmlu_summary.json")
+    _gate(os.path.exists(mmlu_json),
+          f"no MMLU summary at {mmlu_json} — run `abliterate mmlu` first "
+          "(or pass --mmlu)")
     cfg = json.load(open(os.path.join(A, "run_config.json")))
     lc = json.load(open(os.path.join(A, "layer_coherence.json")))
     mmlu = json.load(open(mmlu_json))
@@ -364,8 +375,8 @@ the pinned revision). Raw results in `eval/`.
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="abliterate-publish")
     ap.add_argument("--spec", required=True)
-    ap.add_argument("--variant-dir", required=True)
-    ap.add_argument("--mmlu", required=True)
+    ap.add_argument("--variant-dir")
+    ap.add_argument("--mmlu")
     ap.add_argument("--i-know-this-publishes", action="store_true")
     args = ap.parse_args(argv)
     return publish_phase(args.spec, args.variant_dir, args.mmlu,

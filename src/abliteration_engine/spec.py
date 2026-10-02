@@ -35,8 +35,13 @@ def load_spec(path):
 
     Raises SpecError with an actionable message on any violation.
     """
-    with open(path) as f:
-        raw = yaml.safe_load(f)
+    try:
+        with open(path) as f:
+            raw = yaml.safe_load(f)
+    except FileNotFoundError as e:
+        raise SpecError(f"spec file not found: {path}") from e
+    except yaml.YAMLError as e:
+        raise SpecError(f"{path}: not valid YAML ({e})") from e
     if not isinstance(raw, dict):
         raise SpecError(f"{path}: YAML must be a mapping, got {type(raw)}")
 

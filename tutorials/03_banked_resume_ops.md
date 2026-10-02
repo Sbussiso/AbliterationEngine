@@ -130,12 +130,13 @@ check reads the probes file name (any variant — `wd_*` *or*
 |---|---|
 | under 45 min | one stage per session, done |
 | 45–55 min (L4) | ladder + start of the exam; bank between |
-| over an hour | **split it**: one verb per session (`run`, then `ladder`, then `mmlu`) |
+| over an hour | **split it**: one verb per session (`run`, then `mmlu`; if `run` died mid-ladder, `ladder` picks it up) |
 | "the whole mission at once" | resist. you'll die mid-flight and pay twice |
 
 The GPU verbs are the practical splitter, one at a time:
-`run` (measure), `ladder` (surgeries), `mmlu` (exam). Each is designed
-to be a complete, resume-able unit. (`publish` is the local-CPU
+`run` (measure, then surgeries), `ladder` (surgeries only), `mmlu`
+(exam). Each is designed to be a complete, resume-able unit. On a paid
+session with no hour limit, `run --with-mmlu` chains them all. (`publish` is the local-CPU
 exception — it runs on whatever session you're sitting at, no GPU.)
 
 Bigger GPUs don't buy you a longer timer — it's roughly an hour on T4,
