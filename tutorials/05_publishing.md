@@ -91,7 +91,7 @@ plus the model lineage (which base model, which pinned version) and a
 plain-language safety note + the spec's `card_marker` line.
 
 Real example — the whole card is one file:
-[`qwen2.5-7b-001/artifacts/publish/CARD.md`](../qwen2.5-7b-001/artifacts/publish/CARD.md),
+[`tutorials/assets/example_card_7b.md`](assets/example_card_7b.md),
 and the live version it became:
 [Qwen2.5-7B-abliterated on HF](https://huggingface.co/sbussiso/Qwen2.5-7B-abliterated).
 
