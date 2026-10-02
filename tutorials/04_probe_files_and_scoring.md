@@ -47,6 +47,7 @@ File names = snapshots of the model under different conditions:
 | `probes_baseline.json` | the model as it came |
 | `probes_hook_ablated.json` | refusal-direction switched off (temporary) |
 | `probes_wd_<NAME>.json` | after each permanent surgery attempt |
+| `probes_ara_<RANK>.json` | after the self-tuning surgery (`ara_50` = rank-50 ARA) |
 
 **How to read percentages:** count and divide.
 

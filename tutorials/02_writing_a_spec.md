@@ -142,6 +142,25 @@ automatically. Small models (0.5B–3B) usually only need the simplest
 surgery; big models sometimes need wider ones — that's exactly why
 there's a ladder instead of one guess.
 
+**The fifth kind of surgery:** the ladder also accepts `ara_<rank>`
+variants (e.g. `ara_50`) — a newer, self-tuning surgery (Arbitrary-Rank
+Ablation, Weidmann 2026) that *fits* its edit to your specific model by
+optimization instead of orthogonalizing one direction. All its settings
+have sane defaults; to try it, just add the name to the list:
+
+```yaml
+ladder:
+  variants: [wd_B, wd_BN, wd_ML, wd_ML_BN, ara_50]
+```
+
+(`ara` is free to use for any model: it trains on built-in question
+pools that ship with the tool and never overlap the exam questions the
+gates judge it on. Like any wider surgery it costs extra GPU time —
+give it its own session window if you're tight; Tutorial 3 explains
+session splitting. If you want to tune it anyway, an optional
+`ladder.ara:` block takes overrides — `abliterate plan` prints the
+effective settings either way.)
+
 **No surgeries?** Write `variants: []` and the run just measures the
 model (a "characterization run") — great first experiment for a brand
 new model.
@@ -218,6 +237,7 @@ the pipeline.
 | Ask more questions | `probe_sets.n_probes` |
 | Stricter quality | lower `gates.publish_refusal` |
 | A more thorough surgery | more layers in ladder `k_*` |
+| Try the self-tuning surgery too | add `ara_50` to `ladder.variants` |
 | Just measure, no surgery | `ladder.variants: []` |
 | No pauses before publish | `hitl: {after_selection: false, before_publish: false}` |
 

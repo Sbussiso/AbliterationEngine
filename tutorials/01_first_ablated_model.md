@@ -166,6 +166,8 @@ copies are correct, then asks the same test questions. Each attempt
 becomes a file like `probes_wd_B.json`, and a judge within the tool
 (the "selection gate") picks the winner: the one that refuses the least
 *harmful* content while still serving *harmless* questions normally.
+(There's also a self-tuning surgery, `ara_<rank>` — Tutorial 2's ladder
+section introduces it; the default specs run the classic ladder.)
 
 Then, the exam:
 

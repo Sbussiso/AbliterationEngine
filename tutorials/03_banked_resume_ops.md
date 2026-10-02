@@ -89,6 +89,11 @@ didn't make it off the VM: the publish/exam stages will **refuse
 loudly** rather than pretend the model exists — you'll re-run that
 variant's save step, not its full measurement.
 
+The name-agnostic part matters when you mix surgeries: the resume
+check reads the probes file name (any variant — `wd_*` *or*
+`ara_<rank>`), so a session that died after `wd_ML` but before
+`ara_50` (or the other way around) still banks and resumes both.
+
 ---
 
 ## Habit 3 — Plan your session around the ~60-minute timer
