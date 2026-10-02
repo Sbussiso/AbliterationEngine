@@ -9,7 +9,7 @@ variants were banked (provenance for the paper).
 
 Fail-safe: anything corrupt/incomplete/partial re-runs normally.
 
-CPU-CI note: tests/test_ftt20_ports.py locks that edits (torch-bound) is
+CPU-CI note: tests/test_phase_ports.py locks that edits (torch-bound) is
 imported only on GPU paths; these tests exercise the pure-resume branch of
 run_ladder, so torch is stubbed with a lightweight fake — the resume path
 touches summaries and file naming only, never tensor ops.

@@ -284,9 +284,7 @@ data will NOT preserve the 0% state.
   sha256 `8ee4567a242d0ac8…` — loadable via
   `from_pretrained("sbussiso/Qwen2.5-0.5B-abliterated", revision="0155cad…")` or
   `hf download sbussiso/Qwen2.5-0.5B-abliterated --revision 0155cad`.
-- Method + evaluation write-ups:
-  [Run 001 paper](https://linear.app/home-lab101/document/abliteration-run-001-persistent-refusal-ablation-by-readout-space-de8c473a1ee3),
-  [Run 003 paper](https://linear.app/home-lab101/document/abliteration-run-003-the-persistent-edit-ladder-multi-layer-weight-deco-372f46635318).
+- Method + evaluation write-ups: available on request.
 
 ## What this model is, honestly
 

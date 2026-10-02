@@ -1,4 +1,4 @@
-"""FTT-20 smoke-run regression (research-workstation, 2026-10-01 fresh-T4
+"""Smoke-run regression (research-workstation, 2026-10-01 fresh-T4
 Colab smoke of tutorials/01): a fresh-clone session without lm_eval used to
 die silently inside `abliterate mmlu` (empty stdout, rc=3, reason buried in
 mmlu_log.txt). The loud precheck contract now: rc=4 + sentinel "4" +

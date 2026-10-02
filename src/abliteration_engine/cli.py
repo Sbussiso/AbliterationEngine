@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""abliterate — single CLI for eng v3 (FTT-19; dev-workstation owns the
+"""abliterate — single CLI for eng v3 (dev-workstation owns the
 packaged form, this is the engine-side reference CLI).
 
-Verbs (spec'd, FTT-20 implements the GPU-bound ones):
+Verbs (spec'd; GPU-bound ones implemented):
   plan      print the full stage plan for a spec, NO model load (CPU-safe)
   validate  spec-load + artifact-contract pre-checks, CPU-safe
   run       execute the pipeline for a spec (GPU; Colab-side)

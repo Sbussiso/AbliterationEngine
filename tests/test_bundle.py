@@ -1,4 +1,4 @@
-"""Bundle-verb contract tests (FTT-20 prep, CPU-only).
+"""Bundle-verb contract tests (CPU-only).
 
 The bundle is the one-upload Colab artifact; the operator contract is:
 - contains the package source, pyproject.toml, uv.lock, the run spec,

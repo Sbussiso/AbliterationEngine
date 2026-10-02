@@ -1,4 +1,4 @@
-"""FTT-20 GPU-port contract tests (CPU-only, no model load).
+"""GPU-port contract tests (CPU-only, no model load).
 
 Pins what the GPU-stage port must guarantee WITHOUT exercising GPU:
 1. all four phases import + CLI-route against the package;
@@ -113,7 +113,7 @@ def main():
              test_publish_hitl_flag]
     for t in tests:
         t()
-    print("FTT20_PORT_TESTS_OK:", len(tests), "/", len(tests))
+    print("PHASE_PORT_TESTS_OK:", len(tests), "/", len(tests))
 
 
 if __name__ == "__main__":

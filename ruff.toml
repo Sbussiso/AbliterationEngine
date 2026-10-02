@@ -4,8 +4,8 @@ select = ["E", "F", "I"]
 [lint.per-file-ignores]
 # eng shim + in-repo test harness keep their original line lengths & structure
 "harness_v3/**" = ["E501"]
-# ported v2 code (FTT-20 port target): cosmetic pre-issues, tracked not blocked
+# ported v2 code: cosmetic pre-issues, tracked not blocked
 "src/abliteration_engine/core.py" = ["E741", "E731", "F811"]
 "src/abliteration_engine/edits.py" = ["E741", "E501"]
-# FTT-20 port: generated-card f-string template has long literal lines
+# port: generated-card f-string template has long literal lines
 "src/abliteration_engine/publish.py" = ["E501"]

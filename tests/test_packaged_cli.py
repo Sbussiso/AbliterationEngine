@@ -1,4 +1,4 @@
-"""Packaged-CLI contract tests (FTT-19 packaging PR).
+"""Packaged-CLI contract tests (packaging).
 
 --spec must be accepted before OR after the verb; a missing --spec exits 2
 (argparse usage error); all shipped specs plan + validate on CPU; `run`

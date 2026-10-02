@@ -6,7 +6,7 @@ loglikelihoods of true/false reference answers), then:
   - paired per-doc delta d_i = variant - base (identical 240 docs both arms)
   - 10k-resample paired bootstrap percentile CI on mean delta
   - exact two-sided sign test (math.comb binomial)
-Prints a compact JSON verdict block for the card + Linear.
+Prints a compact JSON verdict block for the card.
 """
 import json
 import math

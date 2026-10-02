@@ -1,5 +1,5 @@
 # CI: CPU-side gates on every PR (freeze decision 2). GPU stages stay
-# Colab-side (FTT-20); a PR that does not plan clean on CPU does not merge.
+# Colab-side; a PR that does not plan clean on CPU does not merge.
 name: CI
 
 on:

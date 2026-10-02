@@ -30,7 +30,7 @@ logs/
 .venv/
 
 # Session-scoped watcher/poller junk (dev-workstation)
-ftt20_*.sh
-ftt20_*.log
+ftt_watch*.sh
+ftt_watch*.log
 wp*.py
 wp*_state*.json

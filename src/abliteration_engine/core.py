@@ -1,4 +1,4 @@
-"""eng core — single parameterized abliteration pipeline (FTT-18/19).
+"""eng core — single parameterized abliteration pipeline.
 
 Stage functions take the normalized spec dict (eng/spec.py.load_spec) and
 shared context; each emits the same artifact contracts harness v2 produced,
@@ -244,7 +244,7 @@ def final_norm_module(model):
 # ---- probe scoring (v2-identical semantics: v1 scorer is the frozen
 # Run-001 parity contract — probe artifact `refused` grades are byte-diffed
 # by parity, so v1 NEVER changes. The opt-in v2 grader lives in
-# scoring_v2.py (dev-workstation FTT-26-hardened: list-anchored help
+# scoring_v2.py (dev-workstation-hardened: list-anchored help
 # evidence, empathy-marker exceptions, split-aware subclasses) and is
 # reached through session_grader() when a spec sets
 # probe_sets.marker_mode: v2 — validated over N=192 logged smoke rows,
@@ -459,7 +459,7 @@ def sha256_file(path):
 
 
 # ---- top-level pipeline (stages 1-4; stage 5 ladder + 6 publish in
-# eng/edits.py + eng/publish.py per FTT-20) -----------------------------------
+# eng/edits.py + eng/publish.py -----------------------------------
 def from_spec(spec):
     """Full stage A: load + capture + directions + probes. Returns the
     v2-summary-shaped dict (RUN003_DONE payload shape)."""

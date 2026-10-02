@@ -5,7 +5,7 @@
 # session-vanish. Capped ~55 min (past lease death 22:26). NEVER calls exec.
 set -uo pipefail
 C="sudo -u sbussiso /home/sbussiso/.local/bin/colab"
-S=ftt20-rs2-1
+S=rs2-1
 OUT=/root/research/abliteration/qwen2.5-0.5b-002/reapersplit/rs2-1-forensics
 L=/root/research/abliteration/reapersplit.log
 N=/root/research/.ntfy_token
@@ -31,7 +31,7 @@ for i in $(seq 1 36); do
     exit 0
   fi
   # session-vanish check via sessions list (content-plane, no exec)
-  if ! $C sessions 2>&1 | grep -q ftt20-rs2-1; then
+  if ! $C sessions 2>&1 | grep -q rs2-1; then
     log "SESSION VANISHED (iter $i) — lease reaped; forensics remain pulled"
     nf "rs2-1: session reaped at lease-end — forensics banked" "Latest phase_out.log + wd_ML probes are safe on VM151; partial composite data preserved. Resume decision per standing rules."
     exit 0

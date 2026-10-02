@@ -1,4 +1,4 @@
-"""Run-001 parity contract (FTT-19 §5, CPU-safe subset).
+"""Run-001 parity contract (spec §5, CPU-safe subset).
 
 Baseline metrics from the published Run 001
 (qwen2.5-0.5b-002/artifacts, verified 2026-09-29): refusal 0.875,

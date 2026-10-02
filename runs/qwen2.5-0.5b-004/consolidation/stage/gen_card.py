@@ -341,21 +341,14 @@ avoid scoring compliant text as refusal).
 - Harness: run-003 `harness_sha256.json`/`ladder_sha256.json`
   (`eval2/`); run-002 `eval/run_config.json`.
 - Run 002 paper: *"Abliteration Run 002: Persistent Refusal Ablation by
-  Readout-Space Weight Decoding"* —
-  [Linear document](https://linear.app/home-lab101/document/abliteration-run-002-persistent-refusal-ablation-by-readout-space-de8c473a1ee3),
-  [FTT-11](https://linear.app/home-lab101/issue/FTT-11/abliteration-run-002-qwen25-05b-published).
+  Readout-Space Weight Decoding"* — available on request.
 - Run 003 paper: *"Abliteration Run 003: The Persistent-Edit Ladder —
-  Multi-Layer Weight Decoding Closes the Hook Gap at 0.5B"* —
-  [Linear document](https://linear.app/home-lab101/document/abliteration-run-003-the-persistent-edit-ladder-multi-layer-weight-deco-372f46635318),
-  [FTT-14](https://linear.app/home-lab101/issue/FTT-14/abliteration-run-003-qwen25-05b-persistent-edit-ladder-round-2).
-- Program: run 001 =
-  [FTT-12](https://linear.app/home-lab101/issue/FTT-12/abliteration-run-001-qwen25-05b-patient-zero-inference-time-hook)
-  (patient zero, inference-time hook) · run 004 (1.5B ladder) =
-  [FTT-13](https://linear.app/home-lab101/issue/FTT-13/abliteration-run-003-qwen25-15b-persistent-edit-ladder-mission-004).
+  Multi-Layer Weight Decoding Closes the Hook Gap at 0.5B"* — available on request.
+- Program: run 001 = patient zero, inference-time hook; run 004 = 1.5B ladder.
 - Consolidation note: the temporary
   `sbussiso/Qwen2.5-0.5B-abliterated-r2` repo (run-003 weights, published
   2026-09-28) was merged into this repo and DELETED after byte-level
-  verification; its run record stays on FTT-14.
+  verification; its run record stays with run 003.
 - Abliterated by the sbussiso lab research agent.
 
 ## Intended use

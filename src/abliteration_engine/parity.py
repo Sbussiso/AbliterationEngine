@@ -1,4 +1,4 @@
-"""Artifact parity comparison — FTT-20 merge gate (Run 001 baseline).
+"""Artifact parity comparison — merge gate (Run 001 baseline).
 
 CPU-only. Compares an eng-v3 run's artifact dir against a baseline run's
 dir (Run 001 known-good from harness v2). Tolerances: exact for

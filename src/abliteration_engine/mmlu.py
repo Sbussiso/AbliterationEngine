@@ -1,4 +1,4 @@
-"""MMLU guardrail stage — FTT-20 port (mmlu_eval_003.py faithful).
+"""MMLU guardrail stage (mmlu_eval_003.py faithful).
 
 Identical lm-eval config both sides (task=mmlu full 57-subject,
 num_fewshot=0, batch_size=auto, dtype=float16, seed=0); delta guardrail
@@ -66,7 +66,7 @@ def mmlu_phase(spec_path):
         return 5
     sel = json.load(open(sel_path))
 
-    # FTT-20 smoke-run finding 2026-10-01: lm-eval is NOT a pip-install dep
+    # smoke-run finding 2026-10-01: lm-eval is NOT a pip-install dep
     # (it ships via the gpu extra / preinstalled Colab stack). A fresh
     # clone + `pip install -q .` session died here with empty stdout and
     # rc=3 — indistinguishable from a hung cell to the person watching.

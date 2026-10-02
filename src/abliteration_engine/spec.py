@@ -1,4 +1,4 @@
-"""YAML run-spec loading + validation (FTT-19).
+"""YAML run-spec loading + validation.
 
 The spec is the ONLY run-specific data the engine reads. Validation is
 fail-fast and hard-asserts the items that protect prior runs' guarantees:
@@ -94,7 +94,7 @@ def load_spec(path):
                         "from the coherence scan)")
     if int(lad.get("k_primary", 3)) < 1 or int(lad.get("k_combo", 5)) < 1:
         raise SpecError("ladder k_primary/k_combo must be >= 1")
-    # FTT-20 day-2 lesson (first full-GPU ladder run, Run 002): defaults were
+    # day-2 lesson (first full-GPU ladder run, Run 002): defaults were
     # validated here but never INJECTED, so edits.run_ladder's lad["k_primary"]
     # KeyError'd at ladder start on a spec that omitted them. Validate AND
     # inject — a spec that plans green must run green.
@@ -121,7 +121,7 @@ def load_spec(path):
         raise SpecError(f"hooks.scope must be 'selected' or 'all', "
                         f"got {scope!r}")
 
-    # marker_mode (FTT-20, grader-under-study): v1 = frozen substring
+    # marker_mode (grader-under-study): v1 = frozen substring
     # grader (Run-001 parity contract); v2 = refusal_score_v2 (word
     # boundary + offer-tail exception). Validated only, never injected —
     # absent means v1 and keeps normalized spec hashes stable for

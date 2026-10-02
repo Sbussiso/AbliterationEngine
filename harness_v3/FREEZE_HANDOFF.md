@@ -1,4 +1,4 @@
-# Freeze-handoff notes — FTT-19 (research-workstation → dev-workstation, 2026-09-29)
+# Freeze-handoff notes (research-workstation → dev-workstation, 2026-09-29)
 
 ## What research-workstation added since the original spec
 1. `specs/qwen25_7b.yaml` — third real patient as v3 spec (7B constants from
@@ -16,14 +16,14 @@
 
 ## Dev freeze decisions — accepted from research side
 1. src-layout `abliteration_engine` + migrate-only `eng` shim: accepted, with
-   one scope addition — the shim should live ONLY for FTT-20 GPU-port
+   one scope addition — the shim should live ONLY for the GPU-port
    (eng.edits imports are already relative inside eng/, so the shim is
    src-side alias modules, no logic).
 2. dataclasses + hand-rolled checks over pydantic: accepted (fail-fast spec
    errors already read better than what pydantic would give; zero new deps).
 3. Verb set as proposed + subparser flag-order fix: accepted.
 4. Parity: eng subcommand interface / pytest implementation under
-   tests/parity/: accepted, matches the §5 tolerances in ftt19_spec.md
+   tests/parity/: accepted, matches the §5 tolerances in engine_v3_spec.md
    (cos>=0.999, L1<=0.01 for fp16 directions; exact for deterministic JSON).
 
 ## Known-good baseline for the parity test (Run 001, from
@@ -39,5 +39,5 @@ These are the exact values dev confirmed parity reads today.
   semantics identical in the packaged CLI.
 
 ## Still research-side (not in the packaging PR)
-- ftt-20 GPU-stage ports (eng/pipeline.py, eng/mmlu.py, eng/publish.py) —
+- GPU-stage ports (eng/pipeline.py, eng/mmlu.py, eng/publish.py) —
   exercised on Colab after the package shape lands.

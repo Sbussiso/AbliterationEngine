@@ -1,4 +1,4 @@
-"""Bundle builder — one upload artifact per Colab session (FTT-20 prep).
+"""Bundle builder — one upload artifact per Colab session (phase-split prep).
 
 `abliterate bundle --spec <yaml>` emits a self-contained tarball:
 package source + pyproject + uv.lock + the run spec + runner.sh +
@@ -30,7 +30,7 @@ RUNNER_TEMPLATE = r"""#!/usr/bin/env bash
 # do not edit by hand; regenerate from the spec instead.
 set -euo pipefail
 BUNDLE_DIR="$(cd "$(dirname "$0")" && pwd)"
-PHASE="${{PHASE:-run}}"          # run | ladder | mmlu | publish (FTT-20 verbs)
+PHASE="${{PHASE:-run}}"          # run | ladder | mmlu | publish (phase-split verbs)
 SPEC="{spec_name}"
 
 echo "[bundle] phase=$PHASE spec=$SPEC"

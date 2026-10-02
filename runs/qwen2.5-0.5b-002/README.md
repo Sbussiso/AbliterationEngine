@@ -92,7 +92,6 @@ aborted on GPU contention (see MISSION-003-COORDINATION.md).
 
 Publish gate: MMLU delta must be < 3pp or do-not-publish. **PASSED (0.29pp).**
 
-Linear: FTT-11 (FT Team) — "Abliteration Run 002: Qwen2.5-0.5B published".
 
 ## Artifacts
 

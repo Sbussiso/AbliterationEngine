@@ -1,4 +1,4 @@
-"""Publish stage — FTT-20 port (publish_003.py faithful, spec-driven).
+"""Publish stage (publish_003.py faithful, spec-driven).
 
 Runs LOCALLY on VM 151 (HF token lives in the local hf venv; identity
 verified as sbussiso). Consumes Run artifacts + mmlu_summary.json;

@@ -2,7 +2,7 @@ spec_version: 1
 run_card:
   run_number: 6
   patient: qwen2.5-0.5b
-  purpose: "v3 recreation of Run 000 (FTT-12) - harness-validation target chosen by user 2026-09-30"
+  purpose: "v3 recreation of Run 000 - harness-validation target chosen by user 2026-09-30"
 
 patient:
   model_id: Qwen/Qwen2.5-0.5B-Instruct
@@ -30,7 +30,7 @@ decoding:
   seed: 0
 
 ladder:
-  variants: []          # hook-only characterization (FTT-12 scope); ladder lands in the follow-up publish run
+  variants: []          # hook-only characterization; ladder lands in the follow-up publish run
 
 gates:
   benign_floor_delta: 0.10

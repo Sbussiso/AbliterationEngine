@@ -142,8 +142,7 @@ runs/                      ← per-run research records, one dir per mission (in
 ```
 
 The run records are the *outputs* the engine produced; the engine
-(`src/abliteration_engine/`) is the product. Research write-ups live on
-Linear (FT Team), not in this repo.
+(`src/abliteration_engine/`) is the product this repo exists for.
 
 ### Run-dir index
 
@@ -160,7 +159,7 @@ never committed (`.gitignore`); the committed parts are the readable record.
 | `runs/qwen2.5-0.5b-005` | **Run 004** — refusalbench selective-refusal paper | 0.5B | completed |
 | `runs/qwen2.5-0.5b-006` | **Run 006** — v3 path validation (recreates Run 000) | 0.5B | completed |
 | `runs/qwen2.5-7b-001` | **7B run** (spec `run_number 5`) | 7B | published → [7B](https://huggingface.co/sbussiso/Qwen2.5-7B-abliterated) |
-| `runs/qwen2.5-1.5b-003` | **Run 002** — multi-site persistent ladder (FTT-13) | 1.5B | completed — publish gated off (see [FTT-13 ledger](https://linear.app/home-lab101/issue/FTT-13/abliteration-run-002-qwen25-15b-persistent-edit-ladder-mission-004)) |
+| `runs/qwen2.5-1.5b-003` | **Run 002** — multi-site persistent ladder | 1.5B | completed — publish gated off (analysis in the run record) |
 
 ## Operating notes
 
@@ -198,8 +197,10 @@ never committed (`.gitignore`); the committed parts are the readable record.
 ## Status
 
 Engine v3 runs real patients end-to-end with CI-gated packaging and two
-published models. **Run 002 (1.5B) is complete** — the K=5 persistent edit
+published models. **Run 002 (1.5B) is complete** — the best persistent edit
 cut harmful refusals 98.4% → 34.4% but does not meet the repo's own ≤25%
-publish bar, so no 1.5B model is published (verdict + analysis:
-[FTT-13 run ledger](https://linear.app/home-lab101/issue/FTT-13/abliteration-run-002-qwen25-15b-persistent-edit-ladder-mission-004)).
-Open: end-of-FTT-20 shim deletion; optional deeper-ladder round at 1.5B.
+publish bar, so no 1.5B model is published. The run record under
+`runs/qwen2.5-1.5b-003/` holds the full analysis (per-variant probes,
+selection, MMLU guardrail).
+Open: legacy-shim deletion (see `harness_v3/README.md`); optional
+deeper-ladder round at 1.5B.

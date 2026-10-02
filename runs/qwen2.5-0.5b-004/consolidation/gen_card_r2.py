@@ -197,10 +197,8 @@ untied parameter; `config.json` persists `tie_word_embeddings: false` and
 the input embeddings are untouched (verify: `eval/ladder_sha256.json`).
 Selection was pre-registered (`eval/selection.json`): benign ≥ baseline
 − 0.10, zero degenerates, lowest refusal among gate-passers, publish gate
-refusal < 0.25. Full method + math: the run-003 paper on FT Team
-([Linear document](https://linear.app/home-lab101/document/abliteration-run-003-the-persistent-edit-ladder-multi-layer-weight-deco-372f46635318),
-[FTT-14](https://linear.app/home-lab101/issue/FTT-14/abliteration-run-003-qwen25-05b-persistent-edit-ladder-round-2));
-round-1 paper: [FTT-11](https://linear.app/home-lab101/issue/FTT-11/abliteration-run-002-qwen25-05b-published).
+refusal < 0.25. Full method + math: the run-003 paper (available on
+request).
 
 ## Provenance
 

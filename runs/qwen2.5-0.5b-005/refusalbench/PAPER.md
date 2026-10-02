@@ -2,7 +2,7 @@
 
 ## Title
 **"Direction Ablitation Does Not Further Degrade (Already-at-Floor) Selective Refusal: A Paired RefusalBench-NQ Evaluation of Qwen2.5-0.5B-Instruct vs. Its Ablittrated Derivative"**
-_Run 004 of the Ablitration Program — FTT-16, FT Team_ (2026-09-28/29, VM 151 CPU)
+_Run 004 of the Ablitration Program_ (2026-09-28/29, VM 151 CPU)
 
 ## Abstract
 We evaluated whether abliteration — ablating the single "refusal direction" of
@@ -22,8 +22,8 @@ supported over H2 (disposition-shift degradation), which we attribute primarily 
 there being almost no grounded-refusal calibration in either arm to damage at 0.5B.
 
 ## Background & Motivation
-- **Ablitration Program context**: Run 001 (FTT-11, wd_B gentle edit) and Run 003
-  (FTT-14, wd_ML_BN composite) produced the published artifact
+- **Ablitration Program context**: Run 001 (wd_B gentle edit) and Run 003
+  (wd_ML_BN composite) produced the published artifact
   `sbussiso/Qwen2.5-0.5B-abliterated` (main revision, 0.0% harmful-prompt refusal,
   87.5% benign preservation, MMLU Δ +0.24pp, TruthfulQA Δ −1.42pp CI-zero).
 - **Open question**: the abliteration literature (Scalpel 2607.17427; disposition
@@ -140,7 +140,7 @@ both arms unchanged.
 - The benchmark's real value for smaller/low-calibration artifacts is as a
   **regression check**, not a discriminating leaderboard: the paired design +
   deterministic scorer is what makes the comparison interpretable.
-- Round 3 (1.5B, FTT-13) should re-run this same paired protocol — at 1.5B the
+- Round 3 (1.5B) should re-run this same paired protocol — at 1.5B the
   grounded-refusal calibration should be non-trivial, giving this instrument actual
   discriminative power and making the disposition-shift question (H2) decidable.
 - Candidate follow-up: add GaRAGe multi-doc panel at 1.5B if wall-time allows.

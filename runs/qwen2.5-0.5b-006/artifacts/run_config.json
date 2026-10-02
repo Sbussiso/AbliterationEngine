@@ -7,7 +7,7 @@
   "run_card": {
     "run_number": 6,
     "patient": "qwen2.5-0.5b",
-    "purpose": "v3 recreation of Run 000 (FTT-12) - harness-validation target chosen by user 2026-09-30"
+    "purpose": "v3 recreation of Run 000 - harness-validation target chosen by user 2026-09-30"
   },
   "patient": {
     "model_id": "Qwen/Qwen2.5-0.5B-Instruct",

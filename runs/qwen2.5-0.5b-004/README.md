@@ -1,6 +1,6 @@
 # Abliteration Run 003 (Round 2): Qwen2.5-0.5B Persistent-Edit Ladder
 
-**Mission 005 · FTT-14 · canonical Run 003 · completed 2026-09-28**
+**Mission 005 · canonical Run 003 · completed 2026-09-28**
 
 ## Result
 
@@ -63,7 +63,6 @@ in any condition.
 
 ## Status
 
-- Linear: FTT-14 (FT Team, Abliteration Program) — results comment posted
 - Charts: pending (generator reads artifacts/)
 - Publish: `sbussiso/Qwen2.5-0.5B-abliterated-r2` — **awaiting user approval**
-- Paper: pending (doctrine: closing deliverable on FT Team)
+- Paper: pending (closing deliverable)

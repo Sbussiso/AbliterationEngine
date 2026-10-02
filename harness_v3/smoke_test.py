@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""CPU smoke test for eng v3 (FTT-19 spike).
+"""CPU smoke test for eng v3.
 
 Builds a tiny random-weights stand-in model with Qwen-like structure
 (tied embeddings, final norm, chat template via a default template),
 runs the SPEC-VALIDATION path (load_spec + structure assertion logic),
 and dry-runs the CLI plan verb. NO GPU, NO hub downloads. GPU stages
 are NOT exercised here — that is what the stage-A smoke test on Colab
-does in FTT-20.
+does in production.
 """
 import json
 import os

@@ -7,7 +7,7 @@
   "run_card": {
     "run_number": 2,
     "patient": "qwen2.5-1.5b",
-    "purpose": "Run 002 resume via harness v3 (FTT-13 suspended 2026-09-28; v3 path validated by Run-001 parity + Run 006 exact recreations)"
+    "purpose": "Run 002 resume via harness v3 (suspended 2026-09-28; v3 path validated by Run-001 parity + Run 006 exact recreations)"
   },
   "patient": {
     "model_id": "Qwen/Qwen2.5-1.5B-Instruct",

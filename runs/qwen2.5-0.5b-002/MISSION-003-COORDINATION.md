@@ -49,7 +49,7 @@ parallel replication — that worked out fine).
 ## RESOLVED 2026-09-27 00:15 PDT (research-workstation)
 
 Mission 003 COMPLETE: published sbussiso/Qwen2.5-0.5B-abliterated (rev
-0155cadc, public), MMLU delta 0.29pp (guardrail passed), Linear FTT-11 filed.
+0155cadc, public), MMLU delta 0.29pp (guardrail passed), tracking filed.
 Colab session m003-abl-rw-1 STOPPED ~00:14 PDT; staged token scrubbed from
 /content before stop. If you were mid-flight on this session: artifacts are
 archived locally in this dir (artifacts/, logs/), model is on the hub, and

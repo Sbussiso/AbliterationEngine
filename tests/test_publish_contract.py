@@ -1,4 +1,4 @@
-"""Dev-review regression pins for the FTT-20 GPU ports (CPU-only).
+"""Dev-review regression pins for the GPU ports (CPU-only).
 
 Review finding (publish.py): the port's docstring claimed 'LFS sha256 of
 model.safetensors vs local source' in hub-side verification, but the code

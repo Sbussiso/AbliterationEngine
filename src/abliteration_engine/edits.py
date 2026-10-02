@@ -1,4 +1,4 @@
-"""eng edits — persistent-edit ladder (stage B), FTT-18/FTT-20.
+"""eng edits — persistent-edit ladder (stage B).
 
 Faithful port of ladder_003.py into spec-driven form. The verified mechanics
 documented there carry over unchanged:

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# FTT-20 phase-split resume kit — REAPERSPLIT (2026-09-30).
+# Phase-split resume kit — REAPERSPLIT (2026-09-30).
 # Runs the REMAINING mission tail across fresh ~50-min Colab sessions,
 # engineered around the arch-invariant ~60-min server-side kernel reaper
 # (4x T4 + 1x L4 instances confirm busy-unsafe, keep-alive-blind deaths).
@@ -18,12 +18,12 @@
 #   2. mmlu     : mmlu phase on selected variant -> mmlu_summary.json
 #   3. publish-prep (HITL stop; NO publish until user go/no-go)
 #
-# Env: S=<session base name> (default ftt20-rs2), BUNDLE=<bundle path>,
+# Env: S=<session base name>, BUNDLE=<bundle path> (default: newest in bundles/),
 #      BANKED=<s5 pulled artifacts dir>.
 set -euo pipefail
-S="${S:-ftt20-rs2}"
+S="${S:-rs2}"
 GPU="${GPU:-T4}"           # A (T4) or A+C (A100) — lease is fit-proportional either way
-BUNDLE="${BUNDLE:-/root/research/abliteration/bundles/eng_run_002_qwen2.5-1.5b_20260930T222244Z.tar.gz}"
+BUNDLE="${BUNDLE:-$(ls -t /root/research/abliteration/bundles/*.tar.gz 2>/dev/null | head -1)}"
 BANKED="${BANKED:-/root/research/abliteration/qwen2.5-0.5b-002/eng_run002_pull_s5}"
 LOG=/root/research/abliteration/reapersplit.log
 NTFY_TOKEN=$(cat /root/research/.ntfy_token)

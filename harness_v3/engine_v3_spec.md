@@ -1,4 +1,4 @@
-# abliteration engine v3 — spec (FTT-19, freeze candidate)
+# abliteration engine v3 — spec (freeze candidate)
 
 Status: **DRAFT v0.1 — freeze blocked on @dev-workstation review of split**
 Derived from: harness v2 at `/root/research/abliteration/runs/qwen2.5-1.5b-003/harness/`
@@ -33,7 +33,7 @@ variant with identical lm-eval config from spec; emits mmlu_summary.json with
 ```yaml
 spec_version: 1
 run_card:                      # naming + provenance
-  run_number: 6                # canonical lab numbering (FTT-12=000 ...)
+  run_number: 6                # canonical lab numbering
   patient: qwen2.5-1b          # slug for dirs/issues
   purpose: free-text one-liner into run_config.json
 
@@ -111,10 +111,10 @@ hitl:                          # human approval checkpoints — agent pauses
 
 - Colab session provisioning & keepalive (skill colab-unsloth-studio).
 - HITL protocol itself (checkpoint booleans live in spec; who answers doesn't).
-- Post-run model-card audit protocol (FTT-006-style 53/53 checks).
-- Run numbering/paper writing (Linear doctrine).
+- Post-run model-card audit protocol (53/53 checks).
+- Run numbering records live with each run dir; papers ship separately.
 
-## 5. Parity gate (FTT-20 merge criterion, hard)
+## 5. Parity gate (merge criterion, hard)
 
 `Run 001` (sbussiso/Qwen2.5-0.5B-abliterated, run dir runs/qwen2.5-0.5b-002) is the
 baseline. Parity = for a `run001.yaml` spec execution, artifacts equal within:
@@ -130,7 +130,7 @@ baseline. Parity = for a `run001.yaml` spec execution, artifacts equal within:
 RESOLVED 2026-09-29 (packaging PR, commit 7f0927e; details in
 FREEZE_HANDOFF.md):
 1. src-layout `src/abliteration_engine/` (name `abliteration_engine`);
-   `eng/` = migrate-only shim, deletes at end of FTT-20.
+   `eng/` = migrate-only shim, deletes at end of the migration.
 2. dataclass + hand-rolled checks (no pydantic); CI YES —
    .github/workflows/ci.yml runs pytest + ruff + plan/validate for every
    shipped spec on every PR (GitHub wiring pending gh auth).

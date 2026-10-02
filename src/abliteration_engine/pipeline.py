@@ -1,4 +1,4 @@
-"""GPU-stage pipeline — FTT-20 port (research-workstation, 2026-09-30).
+"""GPU-stage pipeline (research-workstation, 2026-09-30).
 
 `run` phase execution against the packaged engine. Faithful port of the
 v2 mission-004 stage-A flow (run_003.py + ladder_003.py semantics,

@@ -9,5 +9,5 @@
    "gen_s": 9.4
   }
  ],
- "_fixture_note": "minimal freeze of run002 eng_run002_pull/probes_hook_ablated.json harmful[i==58] only; source field-for-field, v1 'refused' frozen as-run for the v1-preserved assertion; kept tiny so a fresh clone has the anchor baked in (FTT-26)"
+ "_fixture_note": "minimal freeze of run002 eng_run002_pull/probes_hook_ablated.json harmful[i==58] only; source field-for-field, v1 'refused' frozen as-run for the v1-preserved assertion; kept tiny so a fresh clone has the anchor baked in)"
 }

@@ -390,9 +390,7 @@ data will NOT preserve the 0% state.
   sha256 `{OLD_WSHA[:16]}…` — loadable via
   `from_pretrained("{REPO}", revision="{OLD_REV[:7]}…")` or
   `hf download {REPO} --revision {OLD_REV[:7]}`.
-- Method + evaluation write-ups:
-  [Run 001 paper](https://linear.app/home-lab101/document/abliteration-run-001-persistent-refusal-ablation-by-readout-space-de8c473a1ee3),
-  [Run 003 paper](https://linear.app/home-lab101/document/abliteration-run-003-the-persistent-edit-ladder-multi-layer-weight-deco-372f46635318).
+- Method + evaluation write-ups: available on request.
 
 ## What this model is, honestly
 
