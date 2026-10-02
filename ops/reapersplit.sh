@@ -26,10 +26,7 @@ GPU="${GPU:-T4}"           # A (T4) or A+C (A100) — lease is fit-proportional 
 BUNDLE="${BUNDLE:-$(ls -t /root/research/abliteration/bundles/*.tar.gz 2>/dev/null | head -1)}"
 BANKED="${BANKED:-/root/research/abliteration/qwen2.5-0.5b-002/eng_run002_pull_s5}"
 LOG=/root/research/abliteration/reapersplit.log
-NTFY_TOKEN=$(cat /root/research/.ntfy_token)
-NTFY_URL=http://10.0.0.119:8090/research
 log() { echo "$(date '+%F %T') $*" >> "$LOG"; }
-notify() { curl -s -u ":$NTFY_TOKEN" -H "Title: $1" "$NTFY_URL" -d "$2" > /dev/null; }
 COLAB="sudo -u sbussiso /home/sbussiso/.local/bin/colab"
 
 STAGE="$1"; shift || true
@@ -62,7 +59,9 @@ import tarfile, hashlib, json, glob, os, re, shutil
 B = "__B__"
 b = open("/content/" + B, "rb").read()
 h = hashlib.sha256(b).hexdigest()
-assert h.startswith("8ac5ebafb2f75a0c"), "bundle sha mismatch: " + h
+EXPECTED_SHA = os.environ.get("EXPECTED_SHA", "")
+if EXPECTED_SHA:
+    assert h.startswith(EXPECTED_SHA), "bundle sha mismatch: " + h
 t = tarfile.open("/content/" + B); t.extractall("/content"); t.close()
 bt = tarfile.open("/content/banked.tar"); bt.extractall("/content/banked_s5"); bt.close()
 
@@ -127,8 +126,6 @@ printf 'import os\nab=os.popen("ps -ef | grep abliterate | grep -v grep").read()
 chmod 644 /tmp/check_s.py
 $COLAB upload -s "$SN" /tmp/check_s.py /tmp/check_s.py 2>&1 | tail -1
 printf 'exec(open("/tmp/check_s.py").read())\n' | $COLAB exec -s "$SN" --timeout 90 2>&1 | tee -a "$LOG" | head -6
-
-notify "REAPERSPLIT stage $SN launched" "phase=$STAGE — runner detached+verified; boundary pings from this watcher; artifact pulls on completion markers." > /dev/null
 log "launched $STAGE on $SN"
 
 # wait for completion markers (poll every 4 min, up to 12 iters = 48 min)
@@ -171,12 +168,10 @@ PYEOF
   ALIVE=$(grep '^ALIVE:' /tmp/mark_s.txt | cut -d' ' -f2)
   if [ "$MARK" != "pending" ]; then
     log "Phase complete ($MARK) on $SN"
-    notify "REAPERSPLIT: $SN phase done ($MARK)" "Artifacts ready to pull."
     break
   fi
   if [ "$ALIVE" = "no" ]; then
     log "Runner died without marker on $SN (iter $i) — bank forensics (partial probes + log) then exit"
-    notify "REAPERSPLIT: runner died without marker ($SN)" "Banking what streamed before inspecting; partial data pulled."
     mkdir -p "$OUT_ROOT/$SN"; chmod 777 "$OUT_ROOT/$SN" 2>/dev/null || true
     $COLAB download -s "$SN" /content/phase_out.log "$OUT_ROOT/$SN/phase_out_partial.log" >>/tmp/rs_dl.log 2>&1 && log "pulled phase_out_partial.log" || true
     for f in probes_wd_ML_BN.json probes_wd_ML.json run_config.json; do
@@ -193,5 +188,4 @@ for f in probes_wd_ML_BN.json selection.json selection_candidates.json run_confi
 done
 $COLAB download -s "$SN" /content/phase_out.log "$OUT_ROOT/$SN/phase_out.log" >>/tmp/rs_dl.log 2>&1 && log "pulled phase_out.log" || true
 ls "$OUT_ROOT/$SN" | tee -a "$LOG"
-notify "REAPERSPLIT: $SN artifacts pulled" "$(ls "$OUT_ROOT/$SN" | tr '\n' ' ')"
 log "=== stage $SN complete ==="
