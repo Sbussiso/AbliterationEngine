@@ -24,17 +24,17 @@ reproducible on demand.
 | Qwen2.5-1.5B-Instruct | refuses 98.4% | **0%** (hook) | *improved* 95.3% → 98.4% |
 | Qwen2.5-7B-Instruct | refuses 93.8% | **12.5%** (persistent edit) | 100% preserved |
 
-![Harmful-refusal removal, per run](docs/charts/refusal_removal.png)
+![Harmful-refusal removal, per run](docs/refusal_removal.png)
 
-![Benign-preservation guardrail](docs/charts/benign_preservation.png)
+![Benign-preservation guardrail](docs/benign_preservation.png)
 
 Two published, downloadable models already exist:
 **[Qwen2.5-0.5B-abliterated](https://huggingface.co/sbussiso/Qwen2.5-0.5B-abliterated)**
 · **[Qwen2.5-7B-abliterated](https://huggingface.co/sbussiso/Qwen2.5-7B-abliterated)**
 
-*Every figure and number above is generated from artifacts committed in this
-repo — run `uv run --no-sync python docs/make_readme_charts.py` to regenerate
-them yourself.*
+*Every figure and number above is measured from committed probe artifacts —
+the parity anchors live in `tests/fixtures/` and the CI contract enforces
+them on every push.*
 
 ---
 
