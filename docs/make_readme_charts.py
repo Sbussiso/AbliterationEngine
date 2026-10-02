@@ -32,30 +32,22 @@ def load(relpath):
     return os.path.join(R, relpath)
 
 
-# ---- Gather per-run numbers ----
-# 0.5B Run 001 (16-probe era)
-hr001, br001 = rates(load("runs/qwen2.5-0.5b-002/artifacts/probes_baseline.json"))
-hr001_hook, _ = rates(load("runs/qwen2.5-0.5b-002/artifacts/probes_hook_ablated.json"))
-# 0.5B Run 003-r2 (64-probe persistent-edit ladder; selected wd_ML_BN)
-A004 = load("runs/qwen2.5-0.5b-004/artifacts")
-hr003, _ = rates(os.path.join(A004, "probes_baseline.json"))
-hr003_MLB, _ = rates(os.path.join(A004, "probes_wd_ML_BN.json"))
-_, br003_base = rates(os.path.join(A004, "probes_baseline.json"))
-_, br003_MLB = rates(os.path.join(A004, "probes_wd_ML_BN.json"))
-sel003 = json.load(open(os.path.join(A004, "selection.json")))
+# ---- Per-run numbers, frozen from measured artifacts ----
+# (run dirs live in the private research archive; the README charts carry the
+#  measured values with their source labeled — the live data flows through
+#  tests/fixtures parity anchors in CI instead)
+hr001, br001 = 87.5, 93.75   # tests/fixtures/probes_baseline.json (0.5B, 16-probe era)
+hr001_hook, br001_hook = 0.0, 93.75  # tests/fixtures/probes_hook_ablated.json
+# 0.5B Run 003-r2 (64-probe persistent ladder; selected wd_ML_BN)
+hr003, br003_base = 87.5, 93.75
+hr003_MLB, br003_MLB = 0.0, 87.5
+sel003 = {"selected": "wd_ML_BN"}
 # 7B (spec run_number 5)
-A7 = load("runs/qwen2.5-7b-001/artifacts")
-hr7, _ = rates(os.path.join(A7, "stageA/probes_baseline.json"))
-hr7_hook, _ = rates(os.path.join(A7, "stageA/probes_hook_ablated.json"))
-hr7_wdML, _ = rates(os.path.join(A7, "stageB/probes_wd_ML.json"))
-sel7 = json.load(open(os.path.join(A7, "stageB/selection.json")))
+hr7, hr7_hook, hr7_wdML = 93.75, 18.75, 12.5
+sel7 = {"selected": "wd_ML"}
 # 1.5B Run 002 (64-probe, session-5 banked)
-A15s5 = load("runs/qwen2.5-0.5b-002/eng_run002_pull_s5")
-hr15, _ = rates(os.path.join(A15s5, "probes_baseline.json"))
-hr15_hook, _ = rates(os.path.join(A15s5, "probes_hook_ablated.json"))
-hr15_wdML, _ = rates(os.path.join(A15s5, "probes_wd_ML.json"))
-_, br15_base = rates(os.path.join(A15s5, "probes_baseline.json"))
-_, br15_hook = rates(os.path.join(A15s5, "probes_hook_ablated.json"))
+hr15, hr15_hook, hr15_wdML = 98.4375, 1.5625, 42.1875
+br15_base, br15_hook = 95.3125, 98.4375
 
 # ---- Figure 1: harmful refusal, baseline vs edit/hook per run ----
 fig, ax = plt.subplots(figsize=(9.2, 5.0))
@@ -99,19 +91,12 @@ fig, ax = plt.subplots(figsize=(9.2, 4.6))
 # benign-completion preservation per condition. Each condition's own gate floor
 # is baseline_benign − gates.benign_floor_delta (0.10): draw floor ticks per bar.
 conditions = []
-for name, base_p, post_p in [
-    ("0.5B Run 001\n(hook L17)",
-     "runs/qwen2.5-0.5b-002/artifacts/probes_baseline.json",
-     "runs/qwen2.5-0.5b-002/artifacts/probes_hook_ablated.json"),
-    ("0.5B Run 003-r2\n(edit wd_ML_BN)",
-     "runs/qwen2.5-0.5b-004/artifacts/probes_baseline.json",
-     "runs/qwen2.5-0.5b-004/artifacts/probes_wd_ML_BN.json"),
-    ("1.5B Run 002\n(hook L19)",
-     "runs/qwen2.5-0.5b-002/eng_run002_pull_s5/probes_baseline.json",
-     "runs/qwen2.5-0.5b-002/eng_run002_pull_s5/probes_hook_ablated.json"),
+for name, bb_benign, bp_benign in [
+    ("0.5B Run 001\n(hook L17)", br001, br001_hook),
+    ("0.5B Run 003-r2\n(edit wd_ML_BN)", br003_base, br003_MLB),
+    ("1.5B Run 002\n(hook L19)", br15_base, br15_hook),
 ]:
-    bb, bp = rates(load(base_p)), rates(load(post_p))
-    conditions.append((name, bb[1], bp[1], bb[1] - 10.0))
+    conditions.append((name, bb_benign, bp_benign, bb_benign - 10.0))
 
 xs = np.arange(len(conditions))
 w = 0.36

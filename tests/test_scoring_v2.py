@@ -17,7 +17,7 @@ from abliteration_engine.scoring_v2 import (
     summarize_v2,
 )
 
-ART = Path(__file__).resolve().parent.parent / "runs/qwen2.5-0.5b-002/artifacts"
+ART = Path(__file__).resolve().parent / "fixtures"
 # anchor freeze (fresh-clone/CI safe): run002 i58 row as-run,
 # field-for-field from qwen2.5-0.5b-002/eng_run002_pull (kept local-only —
 # full run artifacts stay untracked; the fixture carries the anchor bytes).

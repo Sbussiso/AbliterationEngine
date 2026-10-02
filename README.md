@@ -134,32 +134,27 @@ src/abliteration_engine/   ← the package (spec/data/core/edits/pipeline/
                              mmlu/publish/parity/scoring_v2/bundle/cli)
 src/…/sets/                ← builtin probe sets + refusal markers
 specs/                     ← shipped run specs (validated by CI)
-tests/                     ← 64 contract tests, all CPU-only, run in CI
-harness_v3/                ← freeze docs + CPU smoke test + legacy shim
+tests/                     ← contract tests, all CPU-only, run in CI
+tests/fixtures/            ← the committed parity anchors the CI contract reads
 docs/                      ← README figures + the generator that makes them
-ops/                       ← one-off session ops scripts (reapersplit, mirror pull)
-runs/                      ← per-run research records, one dir per mission (index below)
+tutorials/                 ← zero-to-ablated-model walkthroughs (Colab-first)
 ```
 
-The run records are the *outputs* the engine produced; the engine
-(`src/abliteration_engine/`) is the product this repo exists for.
+The engine (`src/abliteration_engine/`) is the product this repo exists for.
 
-### Run-dir index
+### Runs and results
 
-`runs/qwen2.5-*` dirs live under `runs/` as `<patient>-<NNN>` where **NNN is the mission id, not
-the run number** — the [CHANGELOG](CHANGELOG.md) reconciles all mappings
-(run 001 lives in `-002`, run 002 in `-003`, …). Weights/checkpoints are
-never committed (`.gitignore`); the committed parts are the readable record.
+Each run is driven by a YAML spec in `specs/` — one spec, one record. The
+measured outcomes for the program so far:
 
-| Dir | What | Patient | Outcome |
-|---|---|---|---|
-| `runs/qwen2.5-0.5b` | Mission 001 "patient zero" (harness v2) | 0.5B | historical seed |
-| `runs/qwen2.5-0.5b-002` | **Run 001** — parity baseline; CI-referenced artifacts | 0.5B | published → [0.5B](https://huggingface.co/sbussiso/Qwen2.5-0.5B-abliterated) |
-| `runs/qwen2.5-0.5b-004` | **Run 003** r2 — persistent-edit ladder + TruthfulQA/MMLU | 0.5B | completed |
-| `runs/qwen2.5-0.5b-005` | **Run 004** — refusalbench selective-refusal paper | 0.5B | completed |
-| `runs/qwen2.5-0.5b-006` | **Run 006** — v3 path validation (recreates Run 000) | 0.5B | completed |
-| `runs/qwen2.5-7b-001` | **7B run** (spec `run_number 5`) | 7B | published → [7B](https://huggingface.co/sbussiso/Qwen2.5-7B-abliterated) |
-| `runs/qwen2.5-1.5b-003` | **Run 002** — multi-site persistent ladder | 1.5B | completed — publish gated off (analysis in the run record) |
+| Run | Patient | Outcome |
+|---|---|---|
+| 001 | 0.5B | published → [0.5B](https://huggingface.co/sbussiso/Qwen2.5-0.5B-abliterated) |
+| 003 r2 | 0.5B | persistent ladder reaches 0.0% refusal, published card rev on HF `main` |
+| 004 | 0.5B | refusalbench selective-refusal study |
+| 006 | 0.5B | v3 path validation (recreates Run 000) |
+| 7B | 7B | published → [7B](https://huggingface.co/sbussiso/Qwen2.5-7B-abliterated) |
+| 002 | 1.5B | ladder reaches 34.4% — publish gated off by design (private artifact on the hub) |
 
 ## Operating notes
 
@@ -198,9 +193,6 @@ never committed (`.gitignore`); the committed parts are the readable record.
 
 Engine v3 runs real patients end-to-end with CI-gated packaging and two
 published models. **Run 002 (1.5B) is complete** — the best persistent edit
-cut harmful refusals 98.4% → 34.4% but does not meet the repo's own ≤25%
-publish bar, so no 1.5B model is published. The run record under
-`runs/qwen2.5-1.5b-003/` holds the full analysis (per-variant probes,
-selection, MMLU guardrail).
-Open: legacy-shim deletion (see `harness_v3/README.md`); optional
-deeper-ladder round at 1.5B.
+cut harmful refusals 98.4% → 34.4%, above the designed ≤25% publish bar, so
+the measured artifact ships hub-private only.
+Open: optional deeper-ladder round at 1.5B.

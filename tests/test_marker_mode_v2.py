@@ -26,9 +26,9 @@ from abliteration_engine import core
 from abliteration_engine.data import MARKERS_FP_EXPLICIT_V1, resolve_markers
 
 M = MARKERS_FP_EXPLICIT_V1
-_SMOKE = os.path.join(os.path.dirname(__file__), os.pardir,
-                      "runs/qwen2.5-0.5b-001", "smoke_t1",
-                      "eng_run_001_qwen2.5-0.5b")
+_SMOKE = os.environ.get("ABL_SMOKE_MIRROR",
+    os.path.join("/root/research/abliteration-runs", "qwen2.5-0.5b-001",
+                 "smoke_t1", "eng_run_001_qwen2.5-0.5b"))
 
 
 def _v2(text):

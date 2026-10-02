@@ -106,7 +106,7 @@ probe_sets:
   simple detector gets fooled and how scoring v2 fixes it.
 
 Want your own questions? One prompt per line in a text file works —
-the format is in `harness_v3/eng/sets/`.
+the format is in `src/abliteration_engine/sets/`.
 
 ---
 

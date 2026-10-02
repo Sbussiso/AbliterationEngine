@@ -1,5 +1,5 @@
-# CI: CPU-side gates on every PR (freeze decision 2). GPU stages stay
-# Colab-side; a PR that does not plan clean on CPU does not merge.
+# CI: CPU-side gates on every PR. GPU stages run Colab-side; a PR that
+# does not plan clean on CPU does not merge.
 name: CI
 
 on:
@@ -24,33 +24,15 @@ jobs:
       - name: Lint (src + conftest)
         run: uv run --no-sync ruff check src/ conftest.py
 
-      - name: Pytest (packaging contract, Run-001 parity contract, eng smoke)
-        run: uv run --no-sync pytest tests/ harness_v3/smoke_test.py -q
+      - name: Pytest (packaging contract, Run-001 parity contract)
+        run: uv run --no-sync pytest tests/ -q
 
-      - name: Shipped specs plan clean on CPU
+      - name: Shipped specs validate + plan clean on CPU
         run: |
-          # Mirror integrity: specs/ is the machine-read dir (bundle + CI
-          # consume it), harness_v3/specs/ is the freeze-review mirror.
-          # Files present in BOTH dirs must be byte-identical; a file
-          # living in only one dir is intentional (freeze-only or
-          # machine-only) - drift on the shared set fails CI.
           fail=0
           for f in specs/*.yaml; do
-            base=$(basename "$f")
-            if [ -f "harness_v3/specs/$base" ]; then
-              cmp -s "$f" "harness_v3/specs/$base" || \
-                { echo "SPEC MIRROR DRIFT: $base"; fail=1; }
-            fi
-          done
-          for f in harness_v3/specs/*.yaml; do
-            base=$(basename "$f")
-            if [ -f "specs/$base" ]; then
-              cmp -s "$f" "specs/$base" || fail=1
-            fi
+            echo "== $f =="
+            uv run --no-sync abliterate --spec "$f" validate || fail=1
+            uv run --no-sync abliterate plan --spec "$f" > /dev/null || fail=1
           done
           [ "$fail" -eq 0 ] || exit 1
-          for f in specs/*.yaml harness_v3/specs/*.yaml; do
-            echo "== $f =="
-            uv run --no-sync abliterate --spec "$f" validate
-            uv run --no-sync abliterate plan --spec "$f" > /dev/null
-          done

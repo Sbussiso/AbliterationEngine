@@ -20,7 +20,7 @@ import yaml
 from abliteration_engine.spec import SpecError, load_spec, spec_hash
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-RUN001 = os.path.join(REPO, "harness_v3", "specs", "run001_parity.yaml")
+RUN001 = os.path.join(REPO, "specs", "run001_parity.yaml")
 
 
 def _load_dict(mutate=None):

@@ -12,7 +12,7 @@ import pytest
 from abliteration_engine import cli
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SPECS = [os.path.join(REPO, "harness_v3", "specs", p)
+SPECS = [os.path.join(REPO, "specs", p)
          for p in ("run001_parity.yaml", "qwen25_7b.yaml")]
 
 

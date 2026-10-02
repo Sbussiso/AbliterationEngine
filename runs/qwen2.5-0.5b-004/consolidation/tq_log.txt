@@ -1,48 +1,0 @@
-+ cd /root/research/abliteration/qwen2.5-0.5b-004/consolidation
-+ V=/root/research/venvs/ablate/bin/python
-+ CACHE=/root/.cache/huggingface/hub
-+ /root/research/venvs/ablate/bin/python -m lm_eval --model hf --model_args pretrained=Qwen/Qwen2.5-0.5B-Instruct,revision=7ae557604adf67be50417f59c2c2f167def9a775,dtype=float32 --tasks truthfulqa_mc2 --num_fewshot 0 --batch_size auto --seed 0 --output_path tq_base
-+ tail -20
-2026-09-28:13:16:40 INFO     [_cli.run:392] Selected Tasks: ['truthfulqa_mc2']
-2026-09-28:13:16:40 WARNING  [evaluator:184] pretrained=Qwen/Qwen2.5-0.5B-Instruct appears to be an instruct or chat variant but chat template is not applied. Recommend setting
-        `apply_chat_template` (optionally `fewshot_as_multiturn`).
-2026-09-28:13:16:41 INFO     [evaluator:214] Setting random seed to 0 | Setting numpy seed to 0 | Setting torch manual seed to 0 | Setting fewshot manual seed to 0
-2026-09-28:13:16:41 INFO     [evaluator:239] Initializing hf model, with arguments: {'pretrained': 'Qwen/Qwen2.5-0.5B-Instruct', 'revision': '7ae557604adf67be50417f59c2c2f167def9a775', 'dtype': 'float32'}
-2026-09-28:13:16:46 INFO     [models.huggingface:297] Device not specified
-2026-09-28:13:16:46 INFO     [models.huggingface:298] Cuda Available? False
-2026-09-28:13:16:47 INFO     [models.huggingface:582] Model parallel was set to False, max memory was not set, and device map was set to {'': 'cpu'}
-Loading weights:   0%|          | 0/290 [00:00<?, ?it/s]Loading weights:  43%|████▎     | 125/290 [00:00<00:00, 1042.62it/s]Loading weights:  79%|███████▉  | 230/290 [00:00<00:00, 526.10it/s] Loading weights: 100%|██████████| 290/290 [00:00<00:00, 512.42it/s]
-Generating validation split:   0%|          | 0/817 [00:00<?, ? examples/s]Generating validation split: 100%|██████████| 817/817 [00:00<00:00, 32603.08 examples/s]
-2026-09-28:13:17:01 INFO     [evaluator_utils:472] Selected tasks:
-2026-09-28:13:17:01 INFO     [evaluator_utils:506] Task: truthfulqa_mc2 (truthfulqa/truthfulqa_mc2.yaml)
-2026-09-28:13:17:01 INFO     [evaluator:330] num_fewshot has been set to 0 for truthfulqa_mc2 in its config. Manual configuration will be ignored.
-2026-09-28:13:17:01 INFO     [api.task:312] Building contexts for truthfulqa_mc2 on rank 0...
-  0%|          | 0/817 [00:00<?, ?it/s] 10%|▉         | 81/817 [00:00<00:00, 802.42it/s] 20%|█▉        | 162/817 [00:00<00:00, 755.50it/s] 29%|██▉       | 238/817 [00:00<00:00, 751.53it/s] 38%|███▊      | 314/817 [00:00<00:00, 745.61it/s] 48%|████▊     | 389/817 [00:00<00:00, 739.25it/s] 57%|█████▋    | 463/817 [00:00<00:00, 715.21it/s] 66%|██████▌   | 536/817 [00:00<00:00, 719.64it/s] 75%|███████▍  | 610/817 [00:00<00:00, 723.14it/s] 84%|████████▎ | 683/817 [00:00<00:00, 723.32it/s] 93%|█████████▎| 756/817 [00:01<00:00, 597.38it/s]100%|██████████| 817/817 [00:01<00:00, 633.73it/s]
-2026-09-28:13:17:02 INFO     [evaluator:589] Running loglikelihood requests
-Tokenizing inputs:   0%|          | 0/5882 [00:00<?, ?it/s]Tokenizing inputs:   3%|▎         | 149/5882 [00:00<00:03, 1487.59it/s]Tokenizing inputs:   5%|▌         | 298/5882 [00:00<00:04, 1293.40it/s]Tokenizing inputs:   8%|▊         | 451/5882 [00:00<00:03, 1390.87it/s]Tokenizing inputs:  10%|█         | 592/5882 [00:00<00:03, 1391.52it/s]Tokenizing inputs:  12%|█▏        | 733/5882 [00:00<00:03, 1370.92it/s]Tokenizing inputs:  15%|█▍        | 871/5882 [00:00<00:03, 1373.10it/s]Tokenizing inputs:  18%|█▊        | 1040/5882 [00:00<00:03, 1473.73it/s]Tokenizing inputs:  21%|██        | 1214/5882 [00:00<00:03, 1554.70it/s]Tokenizing inputs:  24%|██▍       | 1409/5882 [00:00<00:02, 1674.83it/s]Tokenizing inputs:  27%|██▋       | 1615/5882 [00:01<00:02, 1791.84it/s]Tokenizing inputs:  31%|███       | 1819/5882 [00:01<00:02, 1861.91it/s]Tokenizing inputs:  35%|███▍      | 2032/5882 [00:01<00:01, 1942.34it/s]Tokenizing inputs:  38%|███▊      | 2233/5882 [00:01<00:01, 1961.08it/s]Tokenizing inputs:  42%|████▏     | 2447/5882 [00:01<00:01, 2012.42it/s]Tokenizing inputs:  45%|████▌     | 2669/5882 [00:01<00:01, 2073.04it/s]Tokenizing inputs:  49%|████▉     | 2877/5882 [00:01<00:01, 2062.23it/s]Tokenizing inputs:  53%|█████▎    | 3094/5882 [00:01<00:01, 2093.93it/s]Tokenizing inputs:  56%|█████▌    | 3304/5882 [00:01<00:01, 2078.33it/s]Tokenizing inputs:  60%|█████▉    | 3512/5882 [00:01<00:01, 2058.12it/s]Tokenizing inputs:  63%|██████▎   | 3722/5882 [00:02<00:01, 2067.31it/s]Tokenizing inputs:  67%|██████▋   | 3942/5882 [00:02<00:00, 2106.31it/s]Tokenizing inputs:  71%|███████   | 4153/5882 [00:02<00:00, 2067.53it/s]Tokenizing inputs:  74%|███████▍  | 4360/5882 [00:02<00:00, 2062.93it/s]Tokenizing inputs:  78%|███████▊  | 4567/5882 [00:02<00:00, 2018.86it/s]Tokenizing inputs:  81%|████████  | 4770/5882 [00:02<00:00, 2022.04it/s]Tokenizing inputs:  85%|████████▍ | 4973/5882 [00:02<00:00, 1988.65it/s]Tokenizing inputs:  88%|████████▊ | 5176/5882 [00:02<00:00, 2000.37it/s]Tokenizing inputs:  91%|█████████▏| 5377/5882 [00:02<00:00, 2001.07it/s]Tokenizing inputs:  95%|█████████▍| 5578/5882 [00:02<00:00, 1904.99it/s]Tokenizing inputs:  98%|█████████▊| 5770/5882 [00:03<00:00, 1850.47it/s]Tokenizing inputs: 100%|██████████| 5882/5882 [00:03<00:00, 1856.52it/s]
-Running loglikelihood requests:   0%|          | 0/5882 [00:00<?, ?it/s]/usr/lib64/python3.14/multiprocessing/resource_tracker.py:475: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown: {'/loky-1148098-skcx2p5m'}
-  warnings.warn(
-+ /root/research/venvs/ablate/bin/python -m lm_eval --model hf --model_args pretrained=/root/.cache/huggingface/hub/models--sbussiso--Qwen2.5-0.5B-abliterated-r2/snapshots/6117fb79bf7520674ed9eed71a5cba43eef50443,dtype=float32,trust_remote_code=False --tasks truthfulqa_mc2 --num_fewshot 0 --batch_size auto --seed 0 --output_path tq_r2
-+ tail -20
-           ~~~~~~~~~~~~~~~~~~~~~~~~~~~^
-        pretrained_model_name_or_path, *model_args, config=config, **hub_kwargs, **kwargs
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    )
-    ^
-  File "/root/research/venvs/ablate/lib64/python3.14/site-packages/transformers/modeling_utils.py", line 4218, in from_pretrained
-    checkpoint_files, sharded_metadata = _get_resolved_checkpoint_files(
-                                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
-        pretrained_model_name_or_path=pretrained_model_name_or_path,
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    ...<7 lines>...
-        tqdm_class=tqdm_class,
-        ^^^^^^^^^^^^^^^^^^^^^^
-    )
-    ^
-  File "/root/research/venvs/ablate/lib64/python3.14/site-packages/transformers/modeling_utils.py", line 630, in _get_resolved_checkpoint_files
-    raise OSError(
-    ...<2 lines>...
-    )
-OSError: Error no file named model.safetensors, or pytorch_model.bin, found in directory /root/.cache/huggingface/hub/models--sbussiso--Qwen2.5-0.5B-abliterated-r2/snapshots/6117fb79bf7520674ed9eed71a5cba43eef50443.
-+ echo TQ_DONE
-TQ_DONE

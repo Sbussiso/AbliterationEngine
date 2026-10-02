@@ -187,7 +187,7 @@ this compares your fresh run against that record:
 
 ```python
 !abliterate parity --spec specs/run001_parity.yaml \
-  --baseline runs/qwen2.5-0.5b-002/artifacts
+  --baseline tests/fixtures
 ```
 
 "Parity within tolerance" = your session did the same science the

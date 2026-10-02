@@ -1,7 +1,7 @@
 """Run-001 parity contract (spec §5, CPU-safe subset).
 
 Baseline metrics from the published Run 001
-(qwen2.5-0.5b-002/artifacts, verified 2026-09-29): refusal 0.875,
+(tests/fixtures parity anchors, frozen from run qwen2.5-0.5b-002): refusal 0.875,
 benign_preserved 0.9375, hook-ablated refusal 0.0. The parity verb must
 read those values and MUST NOT fake parity_ok=true when v3 artifacts are
 absent (honest-missing is exit 1, not a silent pass).
@@ -15,8 +15,8 @@ from abliteration_engine import cli
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
-BASELINE = os.path.join(REPO, "runs", "qwen2.5-0.5b-002", "artifacts")
-SPEC = os.path.join(REPO, "harness_v3", "specs", "run001_parity.yaml")
+BASELINE = os.path.join(REPO, "tests", "fixtures")
+SPEC = os.path.join(REPO, "specs", "run001_parity.yaml")
 
 
 def _run_parity():

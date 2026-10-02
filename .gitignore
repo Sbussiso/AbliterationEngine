@@ -4,35 +4,26 @@
 **/*.pyc
 **/model.safetensors
 **/chat_template.jinja
-# Per-run research artifacts: models/weights/checkpoints never belong in git
+# Model weights / artifacts never belong in git (evidence lives in
+# tests/fixtures + run records in the private research archive)
 *.safetensors
-*.npy
 *.npz
 *.gguf
 *.ckpt
 *.bin
-consolidation/stage*/
-consolidation/stage_r2/
 variant_*/
 artifacts/*
-# Run 001 parity baseline (provenance for tests/parity contract, CI-runnable)
-!runs/qwen2.5-0.5b-002/artifacts/refusal_direction_A.npy
-!runs/qwen2.5-0.5b-002/artifacts/refusal_direction_B.npy
-!runs/qwen2.5-0.5b-002/artifacts/refusal_direction.npy
-!runs/qwen2.5-0.5b-002/artifacts/probes_baseline.json
-!runs/qwen2.5-0.5b-002/artifacts/probes_hook_ablated.json
-!runs/qwen2.5-0.5b-002/artifacts/selection.json
 logs/
 *.log
 *.pyc
+__pycache__/
 .pytest_cache/
 .ruff_cache/
 .venv/
-
-# Session-scoped watcher/poller junk (dev-workstation)
+# Dev-local session junk (never commit)
 ftt_watch*.sh
 ftt_watch*.log
 wp*.py
 wp*_state*.json
-# local rebuild weight dirs (weights live on the private HF repo, not in git)
-runs/qwen2.5-1.5b-003/publish_local/wd_ML_BN/
+# npy fixture anchors ARE committed (parity contract): explicit exception
+!tests/fixtures/*.npy

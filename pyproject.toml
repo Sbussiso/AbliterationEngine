@@ -35,7 +35,7 @@ build-backend = "uv_build"
 module-name = "abliteration_engine"
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "harness_v3"]
+testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 88

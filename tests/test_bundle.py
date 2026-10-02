@@ -19,7 +19,7 @@ import pytest
 from abliteration_engine import cli
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SPEC = os.path.join(REPO, "harness_v3", "specs", "run001_parity.yaml")
+SPEC = os.path.join(REPO, "specs", "run001_parity.yaml")
 REQUIRED_MEMBERS = {
     "runner.sh", "pyproject.toml", "uv.lock", "bundle_meta.json",
     "specs/run001_parity.yaml",

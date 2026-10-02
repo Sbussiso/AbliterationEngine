@@ -1,6 +1,5 @@
 """Pytest path wiring: make `src/` (and repo root) importable in-place
-without installation. `harness_v3/eng` migrate-shims resolve to the
-package through the src path entry. Delete with the legacy shim.
+without installation.
 """
 import os
 import sys
