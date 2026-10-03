@@ -65,7 +65,8 @@ def _render_charts(vdir, pub, base_m, hook_m, hook_label, cands, variant,
     def label(name):
         desc = _CONDITION_LABELS.get(name)
         if name == "wd_ML":
-            desc = f"(top-{len(k_primary)} layers)"
+            desc = (f"(top-{len(k_primary)} layers)" if k_primary
+                    else "(multi-layer)")
         elif name.startswith("ara_"):
             desc = f"(ARA rank {name[4:]})"
         lines = [name] + ([desc] if desc else [])
@@ -166,6 +167,12 @@ def publish_phase(spec_path, variant_dir=None, mmlu_json=None,
     _gate(mmlu.get("variant") in (None, variant),
           f"MMLU summary evaluated {mmlu.get('variant')!r}, but the "
           f"selected variant is {variant!r}")
+    sel_fp = (sel.get("selected_provenance") or {}).get("fingerprint")
+    if sel_fp:  # selections from fingerprinting engines
+        _gate(mmlu.get("variant_fingerprint") == sel_fp,
+              "MMLU summary is not for the current selected weights "
+              f"(fingerprint {str(mmlu.get('variant_fingerprint'))[:12]} vs "
+              f"selection {sel_fp[:12]}) — re-run `abliterate mmlu`")
 
     REPO_ID = pub["repo_id"]
     from huggingface_hub import HfApi

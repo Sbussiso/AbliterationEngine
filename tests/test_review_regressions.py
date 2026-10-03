@@ -364,3 +364,129 @@ def test_scope_all_hooks_fully_detached():
     for m in layers:
         m(x)
     assert hook.calls == 3, "scope=all hooks survived detach()"
+
+
+# ---- second review ------------------------------------------------------------
+
+def test_chained_mmlu_sentinel_reads_running_until_mmlu_ends(tmp_path,
+                                                             monkeypatch):
+    """run --with-mmlu: exit_code.txt read '0' after the ladder while MMLU
+    still ran; it must read 'running' until MMLU writes the final code."""
+    import abliteration_engine
+    from abliteration_engine import mmlu as mmlu_mod
+    from abliteration_engine import pipeline
+
+    monkeypatch.setenv("ENG_OUT_ROOT", str(tmp_path))
+    exit_f = core.sentinel_exit()
+    seen = {}
+    monkeypatch.setattr(core, "from_spec", lambda s: {"ok": 1})
+    fake_edits = types.ModuleType("abliteration_engine.edits")
+    fake_edits.run_ladder = lambda s, ctx: {"selected": "wd_B"}
+    monkeypatch.setitem(sys.modules, "abliteration_engine.edits", fake_edits)
+    monkeypatch.setattr(abliteration_engine, "edits", fake_edits,
+                        raising=False)
+
+    def fake_mmlu(path):
+        seen["during_mmlu"] = open(exit_f).read()
+        return 6
+    monkeypatch.setattr(mmlu_mod, "mmlu_phase", fake_mmlu)
+    assert pipeline  # imported for its run_pipeline used by cli.run
+    assert cli.main(["run", "--spec", RUN001, "--with-mmlu",
+                     "--i-know-this-spends-quota"]) == 6
+    assert seen["during_mmlu"] == "running"
+    assert open(exit_f).read() == "6"
+
+
+def test_mmlu_rerun_removes_stale_summary(tmp_path, monkeypatch):
+    mmlu_mod = _mmlu_env(tmp_path, monkeypatch)
+    (tmp_path / "mmlu_summary.json").write_text('{"guardrail_30pp": true}')
+
+    def broken_lm_eval(cmd, capture_output=True, text=True):
+        return types.SimpleNamespace(returncode=1, stdout="", stderr="boom")
+    monkeypatch.setattr(mmlu_mod.subprocess, "run", broken_lm_eval)
+    assert mmlu_mod.mmlu_phase(RUN001) == 3
+    assert not (tmp_path / "mmlu_summary.json").exists(), \
+        "old passing summary survived a failed re-run"
+
+
+def test_mmlu_summary_records_variant_fingerprint(tmp_path, monkeypatch):
+    mmlu_mod = _mmlu_env(tmp_path, monkeypatch)
+    monkeypatch.setattr(mmlu_mod.subprocess, "run",
+                        _fake_lm_eval({"base": .6, "variant": .59}, []))
+    assert mmlu_mod.mmlu_phase(RUN001) == 0
+    summ = json.loads((tmp_path / "mmlu_summary.json").read_text())
+    assert summ["variant_fingerprint"] == "f1"
+
+
+def _with_selection_fp(fp):
+    def mutate(out_dir):
+        sel = json.loads((out_dir / "selection.json").read_text())
+        sel["selected_provenance"] = {"fingerprint": fp, "verified": True}
+        (out_dir / "selection.json").write_text(json.dumps(sel))
+    return mutate
+
+
+def test_publish_refuses_mmlu_for_other_weights(tmp_path, monkeypatch):
+    with pytest.raises(AssertionError, match="not for the current selected"):
+        _publish(tmp_path, monkeypatch,
+                 artifacts_mutate=_with_selection_fp("new" * 10),
+                 mmlu_mutate=lambda m: m.update(
+                     variant_fingerprint="old" * 10))
+
+
+def test_publish_accepts_matching_fingerprint(tmp_path, monkeypatch):
+    rc, _ = _publish(tmp_path, monkeypatch,
+                     artifacts_mutate=_with_selection_fp("same" * 8),
+                     mmlu_mutate=lambda m: m.update(
+                         variant_fingerprint="same" * 8))
+    assert rc == 0
+
+
+def test_publish_refuses_fingerprintless_summary_for_new_selection(
+        tmp_path, monkeypatch):
+    with pytest.raises(AssertionError, match="re-run `abliterate mmlu`"):
+        _publish(tmp_path, monkeypatch,
+                 artifacts_mutate=_with_selection_fp("x" * 32))
+
+
+@pytest.mark.parametrize("key,val", [("card_charts", "false"),
+                                     ("hf_user", 123),
+                                     ("card_byline", ["a"])])
+def test_spec_validates_publish_options(tmp_path, key, val):
+    p = _spec_variant(tmp_path, lambda d: d["publish"].update({key: val}))
+    with pytest.raises(SpecError, match=f"publish.{key}"):
+        load_spec(p)
+
+
+def test_spec_rejects_out_of_range_ara_layers(tmp_path):
+    def mutate(d):
+        d["ladder"] = {"variants": ["wd_ML", "ara_8"],
+                       "ara": {"layers": [3, 24]}}  # 24 decoder layers: 0..23
+    p = _spec_variant(tmp_path, mutate)
+    with pytest.raises(SpecError, match=r"\[24\] out of range"):
+        load_spec(p)
+    ok = _spec_variant(tmp_path, lambda d: d.update(
+        {"ladder": {"variants": ["wd_ML", "ara_8"],
+                    "ara": {"layers": [3, 23]}}}))
+    assert load_spec(ok)["ladder"]["ara"]["layers"] == [3, 23]
+
+
+def test_init_download_failure_is_clean_refusal(tmp_path, capsys):
+    from abliteration_engine import init_spec
+
+    class Info:
+        sha = "c" * 40
+        siblings = []
+        card_data = {}
+
+    class Api:
+        def model_info(self, *a, **k):
+            return Info()
+
+    def download(*a, **k):
+        raise PermissionError("gated repo")
+    rc = init_spec.init_spec("org/gated", out=str(tmp_path / "s.yaml"),
+                             api=Api(), download=download)
+    assert rc == 2
+    assert "could not download config.json" in capsys.readouterr().err
+    assert not (tmp_path / "s.yaml").exists()

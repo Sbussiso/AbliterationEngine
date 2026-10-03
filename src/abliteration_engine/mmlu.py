@@ -134,6 +134,11 @@ def mmlu_phase(spec_path):
     with open(exit_f, "w") as f:
         f.write("running")
     open(log, "w").close()
+    # a summary from an earlier run must never outlive a re-run that fails
+    # or is abandoned — publish would otherwise trust the old pass
+    summary_path = os.path.join(out_dir, "mmlu_summary.json")
+    if os.path.exists(summary_path):
+        os.remove(summary_path)
     logw(f"mmlu phase start "
          f"{time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}")
 
@@ -205,6 +210,9 @@ def mmlu_phase(spec_path):
         f"guardrail_{str(max_loss).replace('.', '')}pp": delta_pp < max_loss,
         "guardrail_loss_pp_limit": max_loss,
         "variant": sel["selected"],
+        # ties the guardrail result to the exact weights it evaluated;
+        # publish compares this to selection.json
+        "variant_fingerprint": var_prov["fingerprint"],
     }
     json.dump(summary, open(os.path.join(out_dir, "mmlu_summary.json"),
                             "w"), indent=2)

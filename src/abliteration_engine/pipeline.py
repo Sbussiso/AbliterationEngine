@@ -62,13 +62,17 @@ def _run_phase(fn, spec, exit_file, done_key, final=True):
     return rc
 
 
-def run_pipeline(spec):
+def run_pipeline(spec, final=True):
     """`abliterate run` — stage A, then stage B WHEN the spec has ladder
-    variants. Hook-only specs stop after stage A (stage-5 gating)."""
+    variants. Hook-only specs stop after stage A (stage-5 gating).
+
+    final=False (run --with-mmlu): a successful last phase leaves the
+    sentinel at "running" because the MMLU stage still follows; the caller
+    writes the final code."""
     exit_file = core.sentinel_exit()
     has_ladder = bool(spec["ladder"]["variants"])
     rc_a = _run_phase(core.from_spec, spec, exit_file, "RUN_DONE",
-                      final=not has_ladder)
+                      final=final and not has_ladder)
     if rc_a != 0:
         return rc_a
     if not has_ladder:
@@ -77,7 +81,7 @@ def run_pipeline(spec):
     from . import edits  # torch-bound module; deferred for CPU CLI paths
     return _run_phase(lambda s: edits.run_ladder(s, {"out_dir": core._out_dir(s),
                                                      "model": None}),
-                      spec, exit_file, "LADDER_DONE")
+                      spec, exit_file, "LADDER_DONE", final=final)
 
 
 def ladder_phase(spec_path):

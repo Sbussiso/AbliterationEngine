@@ -129,17 +129,22 @@ def _quota_refusal(verb):
 def run(spec_path, assume_yes=False, with_mmlu=False):
     if not assume_yes:
         return _quota_refusal("run")
-    from abliteration_engine.pipeline import run_pipeline
+    from abliteration_engine import core
+    from abliteration_engine.pipeline import _write_sentinel_exit, run_pipeline
     spec = load_spec(spec_path)
-    rc = run_pipeline(spec)
-    if rc != 0 or not with_mmlu:
-        return rc
-    if not spec["ladder"]["variants"]:
+    chain = with_mmlu and bool(spec["ladder"]["variants"])
+    # chained: exit_code.txt must stay "running" through MMLU, not read "0"
+    # the moment the ladder finishes
+    rc = run_pipeline(spec, final=not chain)
+    if with_mmlu and not chain:
         print("--with-mmlu: skipped (hook-only spec, no variant to "
               "evaluate)", flush=True)
+    if rc != 0 or not chain:
         return rc
     from abliteration_engine.mmlu import mmlu_phase
-    return mmlu_phase(spec_path)
+    rc = mmlu_phase(spec_path)
+    _write_sentinel_exit(core.sentinel_exit(), rc)
+    return rc
 
 
 def bundle(spec_path, out_dir="bundles"):

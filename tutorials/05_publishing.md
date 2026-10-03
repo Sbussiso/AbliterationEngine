@@ -24,7 +24,7 @@ scrambled.
 | 2. Probe gate | model still refuses under 25% of harmful probes | "refusal >= threshold — DO NOT PUBLISH" |
 | 3. MMLU guardrail | knowledge exam: less than 3 points lost vs original | "MMLU guardrail failed" |
 | 4. Files on disk | the winner's actual weights exist locally | "missing variant dir" |
-| 5. Right weights | `--variant-dir` is the winner's folder, and the exam summary graded the winner | "not the selected variant's dir" / "MMLU summary evaluated …" |
+| 5. Right weights | `--variant-dir` is the winner's folder, and the exam summary graded *these exact* winner weights (a re-run ladder needs a fresh `mmlu`) | "not the selected variant's dir" / "MMLU summary is not for the current selected weights" |
 | 6. Identity | your Hugging Face login owns the `repo_id` namespace (your username or one of your orgs; `publish.hf_user` pins an exact account) | "identity check failed" |
 
 Six locks, one key: you must pass `--i-know-this-publishes` yourself.

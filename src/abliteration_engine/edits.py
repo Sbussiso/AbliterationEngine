@@ -542,7 +542,13 @@ def run_ladder(spec, ctx):
                        [v for v, s in summ.items() if s.get("banked_resume")],
                    # what produced the selected variant's weights/probes;
                    # mmlu.py keys its banked-results reuse on this
-                   "selected_provenance": prov[selected["variant"]],
+                   "selected_provenance": {
+                       **prov[selected["variant"]],
+                       # False when the winner's probes were reused from a
+                       # pre-fingerprint banked file: the fingerprint is
+                       # what the run expected, not what produced them
+                       "verified": summ[selected["variant"]].get(
+                           "banked_provenance", "verified") == "verified"},
                    "publish_eligible_probe_gate": eligible,
                    "publish_refusal_threshold":
                        spec["gates"]["publish_refusal"],
