@@ -16,8 +16,14 @@ gpu = [
     "torch>=2.2",
     "transformers>=4.44",
 ]
+charts = [
+    # model-card figures (publish renders them when importable)
+    "matplotlib>=3.7",
+]
 dev = [
     "pytest>=8.0",
+    # CI renders the card charts for real (tests/test_card_charts.py)
+    "matplotlib>=3.7",
     "ruff>=0.6",
     # publish tests mock huggingface_hub.HfApi; CI's frozen sync has no
     # system-site leak, so the mock target must be a real dev dep

@@ -136,6 +136,13 @@ def load_spec(path):
             raise SpecError("ladder.ara set but ladder.variants has no "
                             "ara_<rank> variant")
         lad["ara"] = cfg  # normalized config (injected, mirrors k_primary)
+        n_layers = se.get("num_hidden_layers")
+        bad_l = [x for x in (cfg.get("layers") or [])
+                 if isinstance(n_layers, int) and x >= n_layers]
+        if bad_l:
+            raise SpecError(f"ladder.ara.layers {bad_l} out of range for "
+                            f"{n_layers} decoder layers "
+                            "(patient.structure_expect.num_hidden_layers)")
         n_ara = [v for v in variants if _is_ara_variant(v)]
         if len(n_ara) > 1:
             raise SpecError("multiple ara_<rank> variants in one ladder is "
@@ -207,6 +214,15 @@ def load_spec(path):
     out["ladder"] = {**lad, "variants": list(variants)}
     out["decoding"] = {**dec, "seed": int(dec.get("seed", 0))}
     out.setdefault("publish", {})
+    pub = out["publish"] or {}
+    if not isinstance(pub, dict):
+        raise SpecError("publish must be a mapping")
+    if "card_charts" in pub and not isinstance(pub["card_charts"], bool):
+        raise SpecError("publish.card_charts must be true or false "
+                        f"(got {pub['card_charts']!r})")
+    for key in ("hf_user", "card_byline", "card_marker"):
+        if pub.get(key) is not None and not isinstance(pub[key], str):
+            raise SpecError(f"publish.{key} must be a string")
     out.setdefault("colab", {"gpu": "t4"})
     out.setdefault("hitl", {"after_selection": True, "before_publish": True})
     if "verify_disk_bounds" not in out["publish"]:

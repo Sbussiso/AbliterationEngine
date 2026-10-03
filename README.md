@@ -101,7 +101,7 @@ start with [your first ablated model](tutorials/01_first_ablated_model.md).
 | `run` | yes | stage A (capture → direction scan → baseline + hook probes), then the stage-B ladder; `--with-mmlu` chains the guardrail too |
 | `ladder` | yes | stage B only (resume): persistent-edit variants, each edit→save→reload→verify→probe |
 | `mmlu` | yes | guardrail: identical lm-eval config both sides, <3pp loss gate |
-| `publish` | no | verify ALL gates locally, then push weights + card to HF (finds the winner and MMLU summary from the run's records) |
+| `publish` | no | verify ALL gates locally, then push weights + a generated card with charts to HF (finds the winner and MMLU summary from the run's records) |
 | `parity` | no | strict diff vs a known-good baseline run (fails loudly, never fakes) |
 | `bundle` | no | freeze engine+spec+runner into a sha256'd tarball for Colab |
 

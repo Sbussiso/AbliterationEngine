@@ -148,16 +148,29 @@ def init_spec(model_id, revision=None, out=None, run_number=1,
         return 2
     sha = info.sha
     files = {s.rfilename for s in (info.siblings or [])}
-    cfg = json.load(open(download(model_id, "config.json", revision=sha)))
+    try:
+        cfg = json.load(open(download(model_id, "config.json",
+                                      revision=sha)))
+    except Exception as e:  # gated repo, missing file, network
+        print(f"REFUSING: could not download config.json for "
+              f"{model_id}@{sha[:12]} — {type(e).__name__}: {e}",
+              file=sys.stderr)
+        return 2
 
     level, msg = architecture_verdict(cfg)
     print(f"{'OK' if level == 'ok' else 'WARNING'}: {msg}")
     has_template = "chat_template.jinja" in files
     if not has_template and "tokenizer_config.json" in files:
-        tc = json.load(open(download(model_id, "tokenizer_config.json",
-                                     revision=sha)))
-        has_template = bool(tc.get("chat_template"))
-    if not has_template:
+        try:
+            tc = json.load(open(download(model_id, "tokenizer_config.json",
+                                         revision=sha)))
+            has_template = bool(tc.get("chat_template"))
+        except Exception:
+            has_template = None  # unknown: say so instead of guessing
+    if has_template is None:
+        print("WARNING: could not read tokenizer_config.json to check for a "
+              "chat template (stage 1 checks it after loading)")
+    elif not has_template:
         print("WARNING: no chat template found — the engine wraps every "
               "prompt with the tokenizer's chat template; use the model's "
               "-Instruct/-Chat variant")

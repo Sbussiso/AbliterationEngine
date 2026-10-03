@@ -188,22 +188,28 @@ def test_cli_init_requires_model(capsys):
 def test_run_with_mmlu_chains_after_ladder(monkeypatch):
     from abliteration_engine import mmlu, pipeline
     order = []
-    monkeypatch.setattr(pipeline, "run_pipeline",
-                        lambda spec: order.append("run") or 0)
+    finals = []
+    monkeypatch.setattr(
+        pipeline, "run_pipeline",
+        lambda spec, final=True: finals.append(final) or
+        order.append("run") or 0)
     monkeypatch.setattr(mmlu, "mmlu_phase",
                         lambda p: order.append("mmlu") or 0)
     assert cli.main(["run", "--spec", RUN001, "--with-mmlu",
                      "--i-know-this-spends-quota"]) == 0
     assert order == ["run", "mmlu"]
+    assert finals == [False], "chained run must leave the sentinel running"
     order.clear()
+    finals.clear()
     assert cli.main(["run", "--spec", RUN001,
                      "--i-know-this-spends-quota"]) == 0
-    assert order == ["run"]
+    assert order == ["run"] and finals == [True]
 
 
 def test_run_with_mmlu_stops_on_run_failure(monkeypatch):
     from abliteration_engine import mmlu, pipeline
-    monkeypatch.setattr(pipeline, "run_pipeline", lambda spec: 1)
+    monkeypatch.setattr(pipeline, "run_pipeline",
+                        lambda spec, final=True: 1)
     monkeypatch.setattr(mmlu, "mmlu_phase",
                         lambda p: pytest.fail("mmlu ran after a failed run"))
     assert cli.main(["run", "--spec", RUN001, "--with-mmlu",

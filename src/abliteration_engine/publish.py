@@ -47,6 +47,60 @@ def _pct(x):
     return f"{100.0 * x:.1f}%"
 
 
+_CONDITION_LABELS = {
+    "wd_B": "(lm_head)", "wd_BN": "(lm_head+norm)",
+    "wd_ML_BN": "(composite)",
+}
+
+
+def _render_charts(vdir, pub, base_m, hook_m, hook_label, cands, variant,
+                   k_primary, k_combo, mmlu, spec, base_id):
+    """Card charts (card_charts.py). Returns [(rel_path, alt)] or [] when
+    disabled (publish.card_charts: false) or matplotlib is missing — the
+    card then ships text-only, never fails over a figure."""
+    if pub.get("card_charts") is False:
+        return []
+    from . import card_charts
+
+    def label(name):
+        desc = _CONDITION_LABELS.get(name)
+        if name == "wd_ML":
+            desc = (f"(top-{len(k_primary)} layers)" if k_primary
+                    else "(multi-layer)")
+        elif name.startswith("ara_"):
+            desc = f"(ARA rank {name[4:]})"
+        lines = [name] + ([desc] if desc else [])
+        if name == variant:
+            lines.append("PUBLISHED")
+        return "\n".join(lines)
+
+    conditions = [
+        {"label": "baseline", "kind": "baseline", **base_m},
+        {"label": f"hook\n(inference-time,\n{hook_label})", "kind": "hook",
+         **hook_m}]
+    ara_names = [v for v in cands if str(v).startswith("ara_")]
+    for name in ("wd_B", "wd_BN", "wd_ML", "wd_ML_BN", *ara_names):
+        if name in cands:
+            conditions.append({"label": label(name), "kind": "variant",
+                               "published": name == variant,
+                               "refusal_rate": cands[name]["refusal_rate"],
+                               "benign_preserved":
+                                   cands[name]["benign_preserved"]})
+    mmlu = dict(mmlu)
+    mmlu.setdefault("guardrail_loss_pp_limit",
+                    spec["gates"]["mmlu_max_loss_pp"])
+    try:
+        return card_charts.render_card_charts(
+            vdir, conditions, base_m["benign_preserved"],
+            spec["gates"]["benign_floor_delta"],
+            spec["gates"]["publish_refusal"], mmlu, variant,
+            base_id.split("/")[-1])
+    except ImportError:
+        print("card charts skipped: matplotlib not installed "
+              "(pip install 'abliteration-engine[charts]')", flush=True)
+        return []
+
+
 def summarize_probes(artifacts, name):
     p = json.load(open(os.path.join(artifacts, f"probes_{name}.json")))
     rh, rb = p["harmful"], p["harmless"]
@@ -113,6 +167,12 @@ def publish_phase(spec_path, variant_dir=None, mmlu_json=None,
     _gate(mmlu.get("variant") in (None, variant),
           f"MMLU summary evaluated {mmlu.get('variant')!r}, but the "
           f"selected variant is {variant!r}")
+    sel_fp = (sel.get("selected_provenance") or {}).get("fingerprint")
+    if sel_fp:  # selections from fingerprinting engines
+        _gate(mmlu.get("variant_fingerprint") == sel_fp,
+              "MMLU summary is not for the current selected weights "
+              f"(fingerprint {str(mmlu.get('variant_fingerprint'))[:12]} vs "
+              f"selection {sel_fp[:12]}) — re-run `abliterate mmlu`")
 
     REPO_ID = pub["repo_id"]
     from huggingface_hub import HfApi
@@ -212,6 +272,16 @@ def publish_phase(spec_path, variant_dir=None, mmlu_json=None,
     # never derive the human-readable limit from it
     loss_human = f"{mmlu.get('guardrail_loss_pp_limit', spec['gates']['mmlu_max_loss_pp'])}pp"
 
+    # ---- charts from the same artifacts as the tables ----------------------
+    charts = _render_charts(VDIR, pub, base_m, hook_m, hook_label, cands,
+                            variant, k_primary, k_combo, mmlu, spec, BASE_ID)
+    chart_md = {rel: f"![{alt}]({rel})" for rel, alt in charts}
+    refusal_charts = "\n\n".join(
+        chart_md[r] for r in ("charts/refusal_by_condition.png",
+                              "charts/benign_by_condition.png")
+        if r in chart_md)
+    mmlu_chart = chart_md.get("charts/mmlu_guardrail.png", "")
+
     readme = f"""---
 license: {pub.get('license', 'apache-2.0')}
 base_model: {BASE_ID}
@@ -284,6 +354,8 @@ remain. Absolute refusal rates are keyword-marker based (first-person/
 explicit markers only, constant scorer across conditions); deltas are
 meaningful, absolute rates approximate.
 
+{refusal_charts}
+
 ## Capability check: MMLU (lm-evaluation-harness, 0-shot, fp16, seed 0)
 
 | model | MMLU acc | acc_stderr |
@@ -296,6 +368,8 @@ under {loss_human} - {"PASSED" if mmlu[loss_key] else "FAILED"}). Both
 evaluations used identical config (`lm_eval --model hf --tasks mmlu
 --num_fewshot 0 --batch_size auto --seed 0`, dtype float16; base loaded at
 the pinned revision). Raw results in `eval/`.
+
+{mmlu_chart}
 
 ## Intended use
 
@@ -313,7 +387,7 @@ the pinned revision). Raw results in `eval/`.
   `refusal_direction_A.npy` (residual space, layer {L_star}),
   `refusal_direction_B.npy` (final-layer readout space),
   `layer_directions.npz` (all {struct['num_hidden_layers']} per-layer directions)
-- `eval/` - lm-eval MMLU results (base + variant) and refusal probe logs
+- `eval/` - lm-eval MMLU results (base + variant) and refusal probe logs{chr(10) + "- `charts/` - the figures above, rendered from the same artifacts as the tables" if charts else ""}
 - `run_config.json`, `layer_coherence.json`, `selection.json`,
   `selection_candidates.json` - run metadata
 """
@@ -359,6 +433,8 @@ the pinned revision). Raw results in `eval/`.
           "missing model.safetensors (or sharded index) on hub")
     _gate(any("refusal_direction.npy" == os.path.basename(f) for f in files),
           "refusal_direction.npy missing on hub")
+    for rel, _alt in charts:
+        _gate(rel in files, f"chart {rel} missing on hub")
     readme_hub = api.hf_hub_download(REPO_ID, "README.md", repo_type="model")
     hub_readme = open(readme_hub).read()
     _gate("abliteration" in hub_readme, "README tag missing on hub")

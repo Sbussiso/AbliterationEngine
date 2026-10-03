@@ -24,7 +24,7 @@ scrambled.
 | 2. Probe gate | model still refuses under 25% of harmful probes | "refusal >= threshold — DO NOT PUBLISH" |
 | 3. MMLU guardrail | knowledge exam: less than 3 points lost vs original | "MMLU guardrail failed" |
 | 4. Files on disk | the winner's actual weights exist locally | "missing variant dir" |
-| 5. Right weights | `--variant-dir` is the winner's folder, and the exam summary graded the winner | "not the selected variant's dir" / "MMLU summary evaluated …" |
+| 5. Right weights | `--variant-dir` is the winner's folder, and the exam summary graded *these exact* winner weights (a re-run ladder needs a fresh `mmlu`) | "not the selected variant's dir" / "MMLU summary is not for the current selected weights" |
 | 6. Identity | your Hugging Face login owns the `repo_id` namespace (your username or one of your orgs; `publish.hf_user` pins an exact account) | "identity check failed" |
 
 Six locks, one key: you must pass `--i-know-this-publishes` yourself.
@@ -92,7 +92,19 @@ gate. Fix the run (or the variant), don't the gate.
 ## Step 2 — The model card writes itself
 
 Every number on the Hugging Face card is generated from your result
-files: probe percentages (baseline vs edited), benign-preservation,
+files, and so are its three charts: refusal by condition (with the publish
+gate marked), benign answers by condition (with the gate floor), and the
+MMLU before/after against the guardrail limit. They're drawn from the same
+files as the tables, saved into `charts/` next to the weights, and uploaded
+with them. Each chart's text description carries the numbers too, so the
+card still reads correctly to screen readers and where images don't load.
+
+> Charts need matplotlib. Colab already has it. On a laptop, use
+> `uv sync --extra dev` or `pip install '.[charts]'`. Without it, `publish`
+> still works and ships a text-only card (it prints a note). To leave the
+> charts off on purpose, add `card_charts: false` under `publish:`.
+
+The card text itself covers: probe percentages (baseline vs edited), benign-preservation,
 degenerate counts, MMLU before/after, which layers were edited and how,
 plus the model lineage (which base model, which pinned version) and a
 plain-language safety note + the spec's `card_marker` line (and the
