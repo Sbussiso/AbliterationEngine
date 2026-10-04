@@ -1,0 +1,117 @@
+{
+  "best": {
+    "decoder_layer": 9,
+    "hidden_states_index": 10,
+    "direction_norm": 3.7812,
+    "coherence": 0.7174
+  },
+  "table": [
+    {
+      "decoder_layer": 2,
+      "hidden_states_index": 3,
+      "direction_norm": 0.1044,
+      "coherence": 0.1629
+    },
+    {
+      "decoder_layer": 3,
+      "hidden_states_index": 4,
+      "direction_norm": 0.5099,
+      "coherence": 0.3798
+    },
+    {
+      "decoder_layer": 4,
+      "hidden_states_index": 5,
+      "direction_norm": 0.8406,
+      "coherence": 0.4493
+    },
+    {
+      "decoder_layer": 5,
+      "hidden_states_index": 6,
+      "direction_norm": 1.1829,
+      "coherence": 0.5339
+    },
+    {
+      "decoder_layer": 6,
+      "hidden_states_index": 7,
+      "direction_norm": 1.9201,
+      "coherence": 0.6516
+    },
+    {
+      "decoder_layer": 7,
+      "hidden_states_index": 8,
+      "direction_norm": 1.9597,
+      "coherence": 0.6544
+    },
+    {
+      "decoder_layer": 8,
+      "hidden_states_index": 9,
+      "direction_norm": 2.7223,
+      "coherence": 0.6924
+    },
+    {
+      "decoder_layer": 9,
+      "hidden_states_index": 10,
+      "direction_norm": 3.7812,
+      "coherence": 0.7174
+    },
+    {
+      "decoder_layer": 10,
+      "hidden_states_index": 11,
+      "direction_norm": 4.4379,
+      "coherence": 0.701
+    },
+    {
+      "decoder_layer": 11,
+      "hidden_states_index": 12,
+      "direction_norm": 5.5968,
+      "coherence": 0.7
+    },
+    {
+      "decoder_layer": 12,
+      "hidden_states_index": 13,
+      "direction_norm": 6.8716,
+      "coherence": 0.6825
+    },
+    {
+      "decoder_layer": 13,
+      "hidden_states_index": 14,
+      "direction_norm": 8.9875,
+      "coherence": 0.6565
+    },
+    {
+      "decoder_layer": 14,
+      "hidden_states_index": 15,
+      "direction_norm": 10.705,
+      "coherence": 0.6336
+    }
+  ],
+  "n_pairs": 64,
+  "final_layer": 15,
+  "structure": {
+    "num_hidden_layers": 16,
+    "hidden_size": 2048,
+    "intermediate_size": 8192,
+    "vocab_size": 128256,
+    "num_attention_heads": 32,
+    "num_key_value_heads": 8,
+    "tie_word_embeddings": true,
+    "o_proj_shape": [
+      2048,
+      2048
+    ],
+    "down_proj_shape": [
+      2048,
+      8192
+    ],
+    "lm_head_shape": [
+      128256,
+      2048
+    ],
+    "lm_head_is_input_emb": true
+  },
+  "readout_space": {
+    "coherence": 0.6031904816627502,
+    "direction_norm": 74.58287811279297,
+    "readout_norm": "double"
+  }
+}

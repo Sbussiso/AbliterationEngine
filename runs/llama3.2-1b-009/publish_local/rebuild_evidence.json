@@ -1,0 +1,13 @@
+{
+  "rebuild": "wd_B from banked stage-A dir_B (instance #1)",
+  "patient": "meta-llama/Llama-3.2-1B-Instruct",
+  "revision": "9213176726f574b556790deb65791e0c5aa438b6",
+  "dir_B_sha256_16": "94adc9777362b34b",
+  "dir_B_value_sha256_16": "740b6a9305fb9388",
+  "weights_sha256": "6417be31231b76300c7013acccfd30251cc5c105356089a456950e23666e0a9c",
+  "lm_head_edit": {
+    "max|W r'|": 7.117819041013718e-05,
+    "resid": 0.9999999403953552
+  },
+  "recipe": "orthogonalize_lm_head only (wd_B), fp16 CPU, engine v0.2.0 edits.py"
+}
