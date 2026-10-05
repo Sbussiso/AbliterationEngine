@@ -149,6 +149,19 @@ def mmlu_phase(spec_path):
     out_base = os.path.join(out_dir, "mmlu_results", "base")
     out_var = os.path.join(out_dir, "mmlu_results", "variant")
 
+    # torch check moved BEFORE the base arm burns quota: lm-eval imports
+    # torch lazily inside its model registry, so a torch-less session
+    # dies on BOTH arms in ~90 s and PARSE_FAILED reads like a results
+    # format bug instead of the missing-runtime bug it is.
+    try:
+        import torch  # noqa: F401
+    except ModuleNotFoundError:
+        logw("REFUSING: torch not importable - lm-eval's hf backend "
+             "needs it; install the gpu extra and re-run")
+        with open(exit_f, "w") as f:
+            f.write("4")
+        return 4
+
     def run_lm_eval(tag, model_args, odir, provenance=None):
         # banked-MMLU resume: a prior session may have already banked this
         # side; reuse its results_*.json instead of re-burning 40+ min T4 —
