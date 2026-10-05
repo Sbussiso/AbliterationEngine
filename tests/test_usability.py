@@ -165,7 +165,10 @@ def test_init_warns_on_unknown_arch_and_missing_template(tmp_path, capsys):
                              download=_download_from(str(f)))
     assert rc == 0
     out = capsys.readouterr().out
-    assert "WARNING: architecture 'gpt2' is not one" in out
+    # gpt2 is in the layout registry (untested family) since the arch
+    # registry landed: init says mapped-but-not-run, not unsupported
+    assert "WARNING: architecture 'gpt2'" in out
+    assert "not yet run" in out or "never run" in out
     assert "no chat template" in out
 
 

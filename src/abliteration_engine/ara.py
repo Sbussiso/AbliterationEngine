@@ -48,9 +48,10 @@ train[:400] defaults.
 import os
 import time
 
-# component label -> decoder-layer submodule path
-_COMPONENTS = ("self_attn.o_proj", "mlp.down_proj")
+from abliteration_engine import arch
 
+# artifact-label compatibility: component labels written into edit_info /
+# on-disk reports stay the historical names regardless of family naming
 _ARA_DEFAULTS = {
     "preserve_good_weight": 1.0,
     "steer_bad_weight": 0.2,
@@ -121,15 +122,17 @@ def capture_module_io(tok, model, prompts, layers=None, batch_size=16):
     (attention-mask-aware: lens-1 — right padding puts pads in the last
     column, and the same rule as core.capture_final_residuals applies).
     Returns {decoder_layer: {component: (inputs [P, in_dim] f32 cpu,
-    outputs [P, out_dim])}}.
+    outputs [P, out_dim])}} — component keys are the historical artifact
+    labels whatever the family's module naming is.
     """
     import torch
 
-    n_layers = model.config.num_hidden_layers
-    layers = sorted(range(n_layers)) if layers is None else sorted(layers)
+    layers_iter = arch.n_layers(model)
+    layers = sorted(range(layers_iter)) if layers is None else sorted(layers)
     if not layers:
         raise ValueError("no ARA layers requested")
-    io = {li: {c: ([], []) for c in _COMPONENTS} for li in layers}
+    labels = arch.edit_labels(model)
+    io = {li: {c: ([], []) for c in labels} for li in layers}
     current = {}  # batch-scoped last-real-token index for the hooks
 
     def hook(li, c):
@@ -142,10 +145,9 @@ def capture_module_io(tok, model, prompts, layers=None, batch_size=16):
 
     handles = []
     for li in layers:
-        handles.append(model.model.layers[li].self_attn.o_proj
-                       .register_forward_hook(hook(li, "self_attn.o_proj")))
-        handles.append(model.model.layers[li].mlp.down_proj
-                       .register_forward_hook(hook(li, "mlp.down_proj")))
+        for c in labels:
+            handles.append(arch.module_for(model, li, c)
+                           .register_forward_hook(hook(li, c)))
     n_batches = 0
     try:
         with torch.inference_mode():
@@ -165,7 +167,7 @@ def capture_module_io(tok, model, prompts, layers=None, batch_size=16):
     merged = {}
     for li in layers:
         merged[li] = {}
-        for c in _COMPONENTS:
+        for c in labels:
             ins, outs = io[li][c]
             if len(ins) != n_batches:
                 raise AssertionError(
@@ -203,27 +205,21 @@ def ara_loss(good_output, bad_output, new_good_output, new_bad_output,
             + params["steer_bad_weight"] * steer_bad)
 
 
-def _module_for(layer_mod, label):
-    return (layer_mod.self_attn.o_proj if label == "self_attn.o_proj"
-            else layer_mod.mlp.down_proj)
-
-
 def optimize_ara_weights(model, layer, cfg, good_io, bad_io):
-    """Fit A/B for o_proj+down_proj at ONE decoder layer by L-BFGS on the
-    ARA objective, then materialize W_eff into the module weights.
-    Returns per-component info for the variant summary."""
+    """Fit A/B for the family's edit matrices at ONE decoder layer by
+    L-BFGS on the ARA objective, then materialize W_eff into the module
+    weights. Returns per-component info for the variant summary."""
     import torch
 
-    layer_mod = model.model.layers[layer]
     info = {}
-    for label in _COMPONENTS:
-        lin = _module_for(layer_mod, label)
-        W_base = lin.weight.data.detach().float().cpu()
+    for label in arch.edit_labels(model):
+        lin = arch.edit_linear(model, layer, label)
+        W_base = lin.weight.detach().float().cpu()
         W_row_norms = torch.linalg.vector_norm(W_base, dim=1, keepdim=True)
 
         good_in, good_out = good_io[layer][label]
         bad_in, bad_out = bad_io[layer][label]
-        dev = next(lin.parameters()).device
+        dev = next(model.parameters()).device
         good_in = good_in.to(dev)
         good_out = good_out.to(dev)
         bad_in = bad_in.to(dev)
@@ -287,8 +283,7 @@ def optimize_ara_weights(model, layer, cfg, good_io, bad_io):
             rows_after = float(torch.linalg.vector_norm(W_eff, dim=1).max())
             drift = (float(abs(rows_before - rows_after)) / float(rows_before)
                      if rows_before else 0.0)
-            lin.weight = torch.nn.Parameter(
-                W_eff.to(lin.weight.dtype).to(dev), requires_grad=False)
+            lin.set_weight(W_eff)  # orientation-aware write (Conv1D-safe)
         info[label] = {"shape": list(W_base.shape),
                        "loss_first": losses[0] if losses else None,
                        "loss_last": losses[-1] if losses else None,
@@ -306,14 +301,14 @@ def verify_ara_on_disk(model_r, base_model, layers):
     fresh base load; untouched layers are EXACTLY equal. Returns report."""
     out = {"edited_max_absdiff": 0.0, "untouched_max_absdiff": 0.0,
            "layers": {}}
-    for li in range(model_r.config.num_hidden_layers):
-        layer_r = model_r.model.layers[li]
-        layer_b = base_model.model.layers[li]
+    labels = arch.edit_labels(model_r)
+    n = arch.n_layers(model_r)
+    for li in range(n):
         edited = li in layers
         worst = 0.0
-        for label in _COMPONENTS:
-            W_r = _module_for(layer_r, label).weight.data.float().cpu()
-            W_b = _module_for(layer_b, label).weight.data.float().cpu()
+        for label in labels:
+            W_r = arch.edit_linear(model_r, li, label).weight.float().cpu()
+            W_b = arch.edit_linear(base_model, li, label).weight.float().cpu()
             d = float((W_r - W_b).abs().max())
             worst = max(worst, d)
         key = str(li)
@@ -348,8 +343,7 @@ def run_ara_variant(spec, name, cfg, model_base=None, provenance=None):
     print(f"      --- {name} (ARA rank {cfg.get('rank')}) ---", flush=True)
     t0 = time.time()
     tok_v, model_v = core.load_patient(spec)
-    layers = cfg.get("layers") or list(range(
-        model_v.config.num_hidden_layers))
+    layers = cfg.get("layers") or list(range(arch.n_layers(model_v)))
     # normalize at the point of use (day-2 lesson applies): defaults under
     # whatever the spec/caller provided, then rank from the VARIANT NAME
     # (single source of truth) + run seed for the A-init generator

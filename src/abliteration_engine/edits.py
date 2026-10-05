@@ -67,21 +67,25 @@ def orthogonalize_final_norm(model, direction):
 
 
 def orthogonalize_layer_output(model, layer_idx, direction):
-    """Row-space edit at one decoder layer: W <- M W, M = I - r r^T for
-    o_proj and down_proj (residual-stream output matrices). Invariant:
-    (M W)^T r ~= 0 (row-space, not column-space — run-002 gotcha)."""
-    layer = model.model.layers[layer_idx]
+    """Row-space edit at one decoder layer: W <- M W, M = I - r r^T for the
+    attention output-proj and MLP output-proj (residual-stream output
+    matrices; module paths resolved per family by arch.py). Invariant:
+    (M W)^T r ~= 0 (row-space, not column-space — run-002 gotcha).
+    Conv1D-style transposed weights (gpt2 etc.) are handled by arch._Lin:
+    the math below always sees the [out, in] view."""
+    from . import arch
+
     r = direction.detach().float().cpu()
     r = r / r.norm()
     M = torch.eye(r.shape[0]) - torch.outer(r, r)
     resids = {}
-    for label, lin in (("self_attn.o_proj", layer.self_attn.o_proj),
-                       ("mlp.down_proj", layer.mlp.down_proj)):
-        W = lin.weight.data
-        W_new = (M @ W.float().cpu()).to(W.dtype).to(W.device)
-        resid = float((W_new.float().cpu().T @ r).abs().max().item())
+    for label in arch.edit_labels(model):
+        lin = arch.edit_linear(model, layer_idx, label)
+        W = lin.weight.detach().float()
+        W_new = (M @ W).to(torch.float32)
+        resid = float((W_new.T @ r).abs().max().item())
         assert resid < 1e-3, (layer_idx, label, resid)
-        lin.weight = torch.nn.Parameter(W_new, requires_grad=False)
+        lin.set_weight(W_new)
         resids[label] = resid
     return resids
 
@@ -129,19 +133,24 @@ def verify_final_norm_disk(model_r, dir_vec, bound=5e-2):
     return resid
 
 
-def verify_layers_disk(model_r, layers, dirs_np, bound=1e-2):
-    """fp16 reload noise ~3e-4 scale; 1e-2 leaves 30x headroom."""
+def verify_layers_disk(model_r, layers, dirs_np, bound=1e-2, labels=None):
+    """fp16 reload noise ~3e-4 scale; 1e-2 leaves 30x headroom. labels
+    default to the family's edit matrices (arch registry)."""
+    import torch
+
+    from . import arch
+    labels = labels or arch.edit_labels(model_r)
     out = {}
     for l in layers:
-        layer = model_r.model.layers[l]
         r = torch.from_numpy(np.asarray(dirs_np[l])).float()
         r = r / r.norm()
-        Wo = layer.self_attn.o_proj.weight.data.float().cpu()
-        Wd = layer.mlp.down_proj.weight.data.float().cpu()
-        ro = float((Wo.T @ r).abs().max().item())
-        rd = float((Wd.T @ r).abs().max().item())
-        assert ro < bound and rd < bound, (l, ro, rd)
-        out[str(l)] = {"o_proj": ro, "down_proj": rd}
+        worst = {}
+        for label in labels:
+            lin = arch.edit_linear(model_r, l, label)
+            ro = float((lin.weight.float().cpu().T @ r).abs().max().item())
+            assert ro < bound, (l, label, ro)
+            worst[label] = ro
+        out[str(l)] = worst
     return out
 
 

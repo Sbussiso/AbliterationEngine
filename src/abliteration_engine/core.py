@@ -167,48 +167,47 @@ def load_patient(spec):
 def check_patient_compat(tok, model):
     """Fail at load time — before captures, probes or edits spend GPU time —
     when the model lacks the module layout the engine reads and edits, or
-    the tokenizer has no chat template (every prompt is chat-wrapped)."""
-    problems = []
-    layers = getattr(getattr(model, "model", None), "layers", None)
-    if not layers:
-        problems.append("no model.model.layers decoder stack")
-    else:
-        l0 = layers[0]
-        for path in ("self_attn.o_proj", "mlp.down_proj"):
-            obj = l0
-            for part in path.split("."):
-                obj = getattr(obj, part, None)
-            if getattr(obj, "weight", None) is None:
-                problems.append(f"decoder layers have no {path} weight")
-    try:
-        final_norm_module(model)
-    except RuntimeError:
-        problems.append("no final norm module")
-    if model.get_output_embeddings() is None:
-        problems.append("no output embeddings (lm_head)")
-    if not getattr(tok, "chat_template", None):
-        problems.append("tokenizer has no chat template (use the model's "
-                        "-Instruct/-Chat variant)")
+    the tokenizer has no chat template (every prompt is chat-wrapped).
+    The expected paths come from arch.py's per-family layout registry and
+    are checked concretely against the loaded model."""
+    from . import arch
+
+    problems = arch.compat_problems(model, tok)
     if problems:
-        arch = getattr(model.config, "model_type", type(model).__name__)
+        arch_mt = getattr(model.config, "model_type", type(model).__name__)
         raise RuntimeError(
-            f"patient '{arch}' is not supported by this engine: "
+            f"patient '{arch_mt}' is not supported by this engine: "
             + "; ".join(problems)
-            + ". Supported layout: Qwen2/Llama/Mistral-style decoders.")
+            + ". Supported layouts: Llama/Qwen/Mistral-style decoders"
+              " (+ gpt2/gpt-neox/bloom/falcon/gpt-oss via the arch"
+              " registry).")
 
 
 def structure_report(model):
+    """Architecture facts + the edit-matrix names active on this family
+    (arch registry: e.g. gpt_oss's routed MoE experts shrink edits to the
+    attention output projection only)."""
+    from . import arch
+
     c = model.config
+    attn_out = arch.module_for(model, 0, "self_attn.o_proj")
+    labels = arch.edit_labels(model)
     return {
-        "num_hidden_layers": c.num_hidden_layers,
+        "model_type": getattr(c, "model_type", None),
+        "num_hidden_layers": arch.n_layers(model),
         "hidden_size": c.hidden_size,
-        "intermediate_size": c.intermediate_size,
+        "intermediate_size": getattr(c, "intermediate_size", None),
         "vocab_size": c.vocab_size,
-        "num_attention_heads": c.num_attention_heads,
-        "num_key_value_heads": c.num_key_value_heads,
+        "num_attention_heads": getattr(c, "num_attention_heads", None),
+        "num_key_value_heads": getattr(c, "num_key_value_heads", None),
         "tie_word_embeddings": bool(c.tie_word_embeddings),
-        "o_proj_shape": list(model.model.layers[0].self_attn.o_proj.weight.shape),
-        "down_proj_shape": list(model.model.layers[0].mlp.down_proj.weight.shape),
+        "edit_matrices": list(labels),
+        "weight_orientation": ("transposed (Conv1D)" if arch.layout_for(
+            model)["transpose"] else "[out, in]"),
+        "o_proj_shape": list(arch._Lin(attn_out).weight.shape),
+        "down_proj_shape": (list(arch._Lin(arch.module_for(
+            model, 0, "mlp.down_proj")).weight.shape)
+            if "mlp.down_proj" in labels else None),
         "lm_head_shape": list(model.get_output_embeddings().weight.shape),
         "lm_head_is_input_emb": model.get_output_embeddings().weight.data_ptr()
         == model.get_input_embeddings().weight.data_ptr(),
@@ -225,11 +224,14 @@ def assert_patient_structure(spec, struct):
 # ---- stage 2: capture ------------------------------------------------------
 def capture_final_residuals(tok, model, texts, batch=16):
     """Final-position residual stream at EVERY decoder layer, one forward
-    pass per batch. Index 0 = embedding output, i = decoder layer i-1 output.
-    Returns per-layer list of [N, H] float32 CPU tensors (v2-identical)."""
+    pass per batch. Index 0 = embedding output, i = decoder layer i-1
+    output. Returns per-layer list of [N, H] float32 CPU tensors
+    (v2-identical for Llama-lineage families; hidden_states count derives
+    from the arch-registry layer walk)."""
     import torch
 
-    n_layers = model.config.num_hidden_layers
+    from . import arch
+    n_layers = arch.n_layers(model)
     per_layer = [[] for _ in range(n_layers + 1)]
     with torch.inference_mode():
         for i in range(0, len(texts), batch):
@@ -282,14 +284,10 @@ def scan_layers(cap_harm, cap_harmless, n_pairs, min_layer=2):
 
 
 def final_norm_module(model):
-    m = getattr(model, "model", None)
-    n = getattr(m, "norm", None) if m is not None else None
-    if n is None:
-        n = getattr(model, "norm", None) or getattr(model, "final_layer_norm",
-                                                    None)
-    if n is None:
-        raise RuntimeError("final norm module not found")
-    return n
+    """The final-norm module (per-family layout via arch.py)."""
+    from . import arch
+
+    return arch.final_norm_module(model)
 
 
 def readout_norm_mode(spec):
@@ -422,13 +420,15 @@ def run_baseline_and_hook_probes(spec, tok, model, out_dir):
                         next(model.parameters()).dtype)
     scope = (spec.get("hooks") or {}).get("scope", "selected")
     if scope == "all":
-        n_layers = model.config.num_hidden_layers
+        from . import arch
+        n_layers = arch.n_layers(model)
         for l in range(n_layers):
-            hook.attach(model.model.layers[l])
+            hook.attach(arch.blocks(model)[l])
         print(f"      hook scope=ALL ({n_layers} layers, L*={L_star})",
               flush=True)
     else:
-        hook.attach(model.model.layers[L_star])
+        from . import arch
+        hook.attach(arch.blocks(model)[L_star])
         print(f"      hook scope=selected (L{L_star})", flush=True)
     hook_h = run_probes(tok, model, harmful, tag="hook-harm",
                         max_new=spec["decoding"]["max_new_tokens"],
@@ -548,7 +548,8 @@ def from_spec(spec):
     print(f"[1/5] pinned load {spec['patient']['model_id']} @ "
           f"{spec['patient']['revision']}", flush=True)
     tok, model = load_patient(spec)
-    n_layers = model.config.num_hidden_layers
+    from . import arch
+    n_layers = arch.n_layers(model)
     struct = structure_report(model)
     assert_patient_structure(spec, struct)
     print(f"      structure: {json.dumps(struct)}", flush=True)
