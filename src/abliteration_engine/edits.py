@@ -358,40 +358,17 @@ def _banked_variant_summary(spec, name, provenance=None):
         return None
 
 
-_VARIANT_WD_FLAVOR = {"wd_B": "lm_head", "wd_BN": "lm_head",
-                      "wd_ML": "layer", "wd_ML_BN": "lm_head"}
+_VARIANT_WD_FLAVOR = {"wd_B": "untie_head", "wd_BN": "untie_head",
+                      "wd_ML": "keep_tie", "wd_ML_BN": "untie_head"}
 
 
 def expect_tied_for(name, model=None):
     """Tie expectation for a variant ON THIS PATIENT (BUG-2 fix shape):
-    derived from the model's actual base state, not hardcoded from the
-    tied-Qwen chat-patient era.
-
-    - ara_*/wd_ML  edit decoder-layer matrices only -> the tie state is
-      untouched: expect = the base model's own state (an untied coder-7B
-      stays untied; a tied 1.5B stays tied).
-    - wd_B/wd_BN/wd_ML_BN apply the lm_head edit to a CLONED UNTIED head
-      -> expect untied, ON EVERY BASE (a base that already ships untied
-      yields the same False, so the expectation is base-invariant).
-    """
-    if name.startswith("ara_") or _VARIANT_WD_FLAVOR.get(name) == "layer":
-        if model is None:
-            raise ValueError(
-                f"expect_tied_for({name!r}) needs the model to derive the "
-                "untouched tie state (BUG-2: name-only assumptions broke "
-                "untied patients)")
-        return bool(model.config.tie_word_embeddings)
-    if model is not None:
-        actual = (model.get_output_embeddings().weight.data_ptr()
-                  == model.get_input_embeddings().weight.data_ptr())
-        if actual:
-            # pre-flight sanity for untie-by-design variants: the caller is
-            # obliged to have UNTIED the head (orthogonalize_lm_head does)
-            return False
-        return False
-    # name-only call compatibility (no model given): the historical answer
-    # for lm_head variants is untied-by-design
-    return False
+    delegated to the modifier registry's flavor_for (single source of
+    truth — the registry table is authoritative; this wrapper keeps the
+    historical call-site signature)."""
+    from .modifiers import flavor_for
+    return flavor_for(name, model)
 
 
 def run_ladder(spec, ctx):
