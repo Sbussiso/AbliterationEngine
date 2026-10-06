@@ -1,6 +1,6 @@
 [project]
 name = "abliteration-engine"
-version = "0.2.0"
+version = "0.3.0"
 description = "Config-driven abliteration harness: one parameterized engine + YAML run specs (eng v3)"
 readme = "README.md"
 requires-python = ">=3.11"

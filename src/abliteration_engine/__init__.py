@@ -17,6 +17,6 @@ Sentinels (constant across all runs, pollable):
   stdout final line             ENG<STAGE>_DONE {json}
   $ENG_OUT/<stage>_error.txt    traceback tail on stage failure
 """
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = ["__version__"]
