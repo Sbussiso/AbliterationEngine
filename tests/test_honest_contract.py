@@ -187,6 +187,15 @@ def test_publishable_reads_holdout_and_integrity(vault, strict):
 
 
 # ---- honest loss ---------------------------------------------------------------
+def test_honest_loss_refuses_raw_text_lists(vault, strict):
+    """THE seal, pinned: holdout data reaching the loss as a raw list (not
+    a HoldoutVault) is exactly the leak the module exists to prevent."""
+    with pytest.raises(TypeError, match="HoldoutVault"):
+        honest.honest_loss_terms(
+            {"delta_refusal_holdout": 0.4, "benign_drift": 0.0,
+             "capability_drift": 0.0}, list(HOLDOUT_TEXTS), {}, 0.9)
+
+
 def test_honest_loss_terms_all_measured(vault, strict):
     L = honest.honest_loss_terms(
         {"delta_refusal_holdout": 0.4, "benign_drift": 0.01,

@@ -28,6 +28,10 @@ import os
 
 CERTIFICATE_SCHEMA_VERSION = 1
 
+# keys that may be None on a certificate for the metrics not yet measured
+# (capability proxy and the before-values are run-conditional); everything
+# else in REQUIRED is mandatory at build AND at certify — ONE exemption
+# tuple shared by both, so the two gates can never contradict again
 CERTIFICATE_REQUIRED_KEYS = (
     "schema_version", "candidate", "patient",
     "refusal_rate_train", "refusal_rate_holdout",
@@ -37,6 +41,16 @@ CERTIFICATE_REQUIRED_KEYS = (
     "scorer", "seeds", "config_fingerprint", "patient_revision",
     "direction_shas", "generated_at_utc",
 )
+_CERT_OPTIONAL_AT_CERTIFY = (
+    "capability_proxy", "capability_proxy_before",
+    "benign_preserved_before", "refusal_rate_holdout_before",
+    "benign_preserved",
+)
+
+
+def _missing_required_keys(cert):
+    return [k for k in CERTIFICATE_REQUIRED_KEYS if cert.get(k) is None
+            and k not in _CERT_OPTIONAL_AT_CERTIFY]
 
 _STRICT_SCORER = None  # set by set_scorer(); refuses loose fallbacks
 
@@ -79,7 +93,7 @@ class HoldoutVault:
             raise ValueError("holdout stratum must not be empty")
         self._texts = tuple(texts)
         self._source = os.path.abspath(source) if source else source
-        self._graded = False
+        self._graded = False  # informational: vaults grade via grade_with
 
     @property
     def n(self):
@@ -172,14 +186,23 @@ def honest_loss_terms(candidate_metrics, holdout_vault, weights,
     (train-pool ARA/steer terms are the caller's) + holdout/benign/
     capability drift terms:
 
-      L = w_hold · Δrefusal_holdout   (candidate refuses MORE on holdout
-                                       than base -> penalized; the whole
-                                       point is removing refusals)
+      L = w_hold · Δrefusal_holdout
         + w_benign · benign_drift
         + w_cap · capability_drift
 
-    Refuses missing strata — a silent 0.0 term would fake honesty.
+    Contract enforced here:
+    - holdout_vault must BE a HoldoutVault (typing it as the sealed vault
+      keeps holdout TEXTS from sneaking into the loss path as a plain
+      list — only its grade-derived rate may enter); the texts themselves
+      are never read here (only vault.n for denominators).
+    - every metric must be measured; a missing term raises (a silent 0.0
+      would fake honesty).
     """
+    if not isinstance(holdout_vault, HoldoutVault):
+        raise TypeError(
+            f"honest loss: holdout data must be a HoldoutVault (sealed "
+            f"contract), got {type(holdout_vault).__name__} — raw lists "
+            "bypass the no-optimizer-access seal")
     required = ("delta_refusal_holdout", "benign_drift", "capability_drift")
     missing = [k for k in required if candidate_metrics.get(k) is None]
     if missing:
@@ -208,6 +231,7 @@ def build_certificate(candidate, metrics, holdout_vault, config_fingerprint,
         "schema_version": CERTIFICATE_SCHEMA_VERSION,
         "candidate": candidate,
         "patient": {"revision": patient_revision},
+        "patient_revision": patient_revision,
         "refusal_rate_train": refusal_rate_train,
         "refusal_rate_holdout": rate,
         "refusal_rate_holdout_before": holdout_before,
@@ -226,12 +250,7 @@ def build_certificate(candidate, metrics, holdout_vault, config_fingerprint,
         "generated_at_utc": __import__("datetime").datetime.now(
             __import__("datetime").timezone.utc).isoformat(),
     }
-    cert["patient_revision"] = patient_revision
-    missing = [k for k in CERTIFICATE_REQUIRED_KEYS if cert.get(k) is None
-               and k not in ("capability_proxy", "capability_proxy_before",
-                             "benign_preserved_before",
-                             "refusal_rate_holdout_before",
-                             "benign_preserved")]
+    missing = _missing_required_keys(cert)
     if missing:
         raise ValueError(f"certificate incomplete: missing {missing} — "
                          "no certificate may ship with holes")
@@ -241,10 +260,7 @@ def build_certificate(candidate, metrics, holdout_vault, config_fingerprint,
 def certify(cert, out_dir):
     """Validate + write certificate.json + refuse overwrites (a replaced
     certificate is the exact fakery this program exists to prevent)."""
-    missing = [k for k in CERTIFICATE_REQUIRED_KEYS if cert.get(k) is None
-               and k not in ("capability_proxy", "capability_proxy_before",
-                             "benign_preserved_before",
-                             "refusal_rate_holdout_before")]
+    missing = _missing_required_keys(cert)
     if missing:
         raise ValueError(f"certificate incomplete: missing {missing}")
     os.makedirs(out_dir, exist_ok=True)
@@ -265,10 +281,7 @@ def publishable(cert, holdout_bar=0.25):
     """The publish-side reading of a certificate: strict holdout refusal
     under the bar + every required field present. Returns (ok, reasons)."""
     reasons = []
-    missing = [k for k in CERTIFICATE_REQUIRED_KEYS if cert.get(k) is None
-               and k not in ("capability_proxy", "capability_proxy_before",
-                             "benign_preserved_before",
-                             "refusal_rate_holdout_before")]
+    missing = _missing_required_keys(cert)
     if missing:
         reasons.append(f"missing fields {missing}")
     if cert.get("scorer", {}).get("name", "").lower().find("loose") >= 0:

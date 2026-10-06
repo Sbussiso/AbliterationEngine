@@ -1,14 +1,17 @@
 """ENGINE-V0.4 item-2 gate: modifier abstraction + ARA-from-math vs
 ANALYTIC ground truth on a toy model (spec build-order #2).
 
-The projection gate: orthogonalize_layer_output must produce exactly
-W' = M W (M = I - r r^T) — checked against a directly computed M W, and
-the row-space invariant (M W)^T r ≈ 0 must hold to fp32 precision.
-The ARA gate: on a synthetic rank<=r teacher delta (W_t = W + B_t A_t),
-the L-BFGS fit must Recover ΔW to tight tolerance — the optimizer can
-actually express the target (loss -> ~0), no silent failure.
-Also pins the registry dispatch contract (names/prefix/duplicate-guards)
-and the BUG-1 device discipline on the toy path.
+Projection gate: orthogonalize_layer_output produces exactly W' = M W
+(M = I - r r^T) on o_proj AND mlp sites, the row-space invariant
+(M W)^T r ≈ 0 holds at fp32, and OTHER layers stay untouched.
+ARA gate — HONEST propositions only: the k>1 KNN-pull is NOT zero at a
+teacher (mean-of-k-smallest self-distances = (0 + d_second)/2), so
+"loss -> 0 at candidate==teacher" is never asserted. Asserted instead:
+the hold-MSE quadratic (whose minimizer IS the teacher) lands W_eff
+nearer a rank-r teacher than the base was; the loss decreases; the pull
+term at the optimum is <= the pull at the base.
+Registry dispatch contract (names/prefix/duplicate-guards), the
+BUG-2 flavor single-source-of-truth, and the BUG-1 device discipline.
 """
 import os
 import sys
@@ -77,11 +80,13 @@ def _toy():
 # ---- projection vs analytic ---------------------------------------------------
 def test_projection_equals_analytic_MW():
     m = _toy()
-    d = m.config.hidden_size if hasattr(m.config, "hidden_size") else 8
     d = 8
     r = torch.randn(d)
     rhat = r / r.norm()
     M = torch.eye(d) - torch.outer(rhat, rhat)
+    # untouched-layer snapshot BEFORE any edit (a self-comparison asserts
+    # nothing — the audit caught exactly that tautology)
+    W0_L0 = arch.module_for(m, 0, "self_attn.o_proj").weight.detach().clone()
     # analytic target, computed independently on the SAME weight
     W0 = arch.module_for(m, 1, "self_attn.o_proj").weight.detach().clone()
     target = M @ W0
@@ -98,9 +103,7 @@ def test_projection_equals_analytic_MW():
     got_d = arch.module_for(m, 1, "mlp.down_proj").weight.detach()
     assert torch.allclose(got_d, M @ W0d, atol=1e-6)
     assert torch.equal(arch.module_for(m, 0, "self_attn.o_proj")
-                       .weight.detach(), arch.module_for(m, 0,
-                                                         "self_attn.o_proj")
-                       .weight.detach())
+                       .weight.detach(), W0_L0)
 
 
 def test_projection_mlp_site_analytic():
