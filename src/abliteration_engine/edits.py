@@ -81,7 +81,11 @@ def orthogonalize_layer_output(model, layer_idx, direction):
     resids = {}
     for label in arch.edit_labels(model):
         lin = arch.edit_linear(model, layer_idx, label)
-        W = lin.weight.detach().float()
+        # capture on CPU: M lives on CPU (direction is flopped to CPU above),
+        # and .float() alone would keep a CUDA tensor on cuda -> CPU(M)@CUDA(W)
+        # raises on every untied-family edit (run-010 crash, commit 0763282).
+        # set_weight routes the result back to the module's dtype/device.
+        W = lin.weight.detach().float().cpu()
         W_new = (M @ W).to(torch.float32)
         resid = float((W_new.T @ r).abs().max().item())
         assert resid < 1e-3, (layer_idx, label, resid)

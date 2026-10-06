@@ -23,8 +23,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(REPO, "src"))
 
-from abliteration_engine import arch  # noqa: E402
-from abliteration_engine import core  # noqa: E402
+from abliteration_engine import arch, core  # noqa: E402
 
 
 # ---- stand-in building blocks -------------------------------------------------
@@ -224,6 +223,7 @@ def test_row_space_edit_via_registry_invariant():
     r = torch.randn(d)
     dense_lin = arch.module_for(m, 1, "self_attn.o_proj")  # the Linear itself
     before = dense_lin.weight.clone()
+    layer0_before = arch.module_for(m, 0, "self_attn.o_proj").weight.clone()
     from abliteration_engine import edits as edits_mod
     edits_mod.orthogonalize_layer_output(m, 1, r)
     after = arch.module_for(m, 1, "self_attn.o_proj").weight
@@ -231,9 +231,11 @@ def test_row_space_edit_via_registry_invariant():
     rhat = r / r.norm()
     resid = float((after.float().T @ rhat).abs().max())
     assert resid < 1e-3, resid
-    # layer 0 untouched
+    # layer 0 untouched (compare layer 0 against LAYER 0's own pre-edit
+    # clone — the old assert compared it against layer 1's, i.e. two
+    # different random tensors: always false on any model)
     assert torch.equal(arch.module_for(m, 0, "self_attn.o_proj").weight,
-                       before)
+                       layer0_before)
 
 
 def test_conv1d_orientation_roundtrip():
@@ -294,7 +296,6 @@ def test_unknown_model_type_falls_back_to_default_with_compat_check():
     m = _Model("totally_novel")
     assert arch.layout_for(m) is arch._LAYOUTS["default"]
     assert arch.compat_problems(m, _Tok()) == []
-    m2 = _Model("totally_novel")
     # gpt2-shaped: blocks under h, attn at .attn — default row finds
     # model.layers on the wrapper: absent -> compat names it
     g2 = _Model("gpt2")
