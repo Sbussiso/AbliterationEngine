@@ -103,13 +103,39 @@ def verify_untied(model):
             "config_flag": model.config.tie_word_embeddings}
 
 
-def save_variant(model, tok, out_dir, expect_tied):
+def save_variant(model, tok, out_dir, expect_tied=None):
+    """Save a variant. Tie-state contract (bug BUG-2, run-010 coder-7B):
+    the saved config must match the ACTUAL weight-sharing state of the
+    model being saved (post-application truth), never a ladder-carried
+    assumption.
+
+    - Always: config.tie_word_embeddings must equal the real pointer-level
+      tie state of the in-memory model (a config that lies about its own
+      head is a bug upstream of the save — fail here, loudly).
+    - expect_tied (optional, ladder-carried): when given, must also match;
+      pass None for variants that never flip the tie (ara_* derives its
+      state from the base).
+    """
     os.makedirs(out_dir, exist_ok=True)
+    cfg_flag = bool(model.config.tie_word_embeddings)
+    actual_tied = (model.get_output_embeddings().weight.data_ptr()
+                   == model.get_input_embeddings().weight.data_ptr())
+    assert cfg_flag is actual_tied, \
+        (f"tie-state inconsistency before save: "
+         f"config.tie_word_embeddings={cfg_flag} but lm_head/input "
+         f"embeddings are {'tied' if actual_tied else 'NOT tied'} "
+         f"(pointers {'match' if actual_tied else 'differ'})")
     model.save_pretrained(out_dir, safe_serialization=True)
     tok.save_pretrained(out_dir)
-    cfg = json.load(open(os.path.join(out_dir, "config.json")))
-    assert cfg["tie_word_embeddings"] is expect_tied, \
-        (cfg["tie_word_embeddings"], expect_tied)
+    saved = json.load(open(os.path.join(out_dir, "config.json")))
+    assert bool(saved["tie_word_embeddings"]) is cfg_flag, \
+        (f"saved config.json tie_word_embeddings={saved['tie_word_embeddings']}"
+         f" != in-memory {cfg_flag}")
+    if expect_tied is not None:
+        assert cfg_flag is expect_tied, \
+            (f"variant produced tie state {cfg_flag}, ladder expected "
+             f"{expect_tied} (BUG-2 class: tied-base assumption on an "
+             "untied patient?)")
     return out_dir
 
 
@@ -332,16 +358,40 @@ def _banked_variant_summary(spec, name, provenance=None):
         return None
 
 
-_VARIANT_EXPECT_TIED = {"wd_B": False, "wd_BN": False, "wd_ML": True,
-                        "wd_ML_BN": False}
+_VARIANT_WD_FLAVOR = {"wd_B": "lm_head", "wd_BN": "lm_head",
+                      "wd_ML": "layer", "wd_ML_BN": "lm_head"}
 
 
-def expect_tied_for(name):
-    """Tie expectation per variant name: ara_* keeps the tie (decoder-layer
-    edit only); wd_* names carry their historical expectations."""
-    if name.startswith("ara_"):
-        return True
-    return _VARIANT_EXPECT_TIED[name]
+def expect_tied_for(name, model=None):
+    """Tie expectation for a variant ON THIS PATIENT (BUG-2 fix shape):
+    derived from the model's actual base state, not hardcoded from the
+    tied-Qwen chat-patient era.
+
+    - ara_*/wd_ML  edit decoder-layer matrices only -> the tie state is
+      untouched: expect = the base model's own state (an untied coder-7B
+      stays untied; a tied 1.5B stays tied).
+    - wd_B/wd_BN/wd_ML_BN apply the lm_head edit to a CLONED UNTIED head
+      -> expect untied, ON EVERY BASE (a base that already ships untied
+      yields the same False, so the expectation is base-invariant).
+    """
+    if name.startswith("ara_") or _VARIANT_WD_FLAVOR.get(name) == "layer":
+        if model is None:
+            raise ValueError(
+                f"expect_tied_for({name!r}) needs the model to derive the "
+                "untouched tie state (BUG-2: name-only assumptions broke "
+                "untied patients)")
+        return bool(model.config.tie_word_embeddings)
+    if model is not None:
+        actual = (model.get_output_embeddings().weight.data_ptr()
+                  == model.get_input_embeddings().weight.data_ptr())
+        if actual:
+            # pre-flight sanity for untie-by-design variants: the caller is
+            # obliged to have UNTIED the head (orthogonalize_lm_head does)
+            return False
+        return False
+    # name-only call compatibility (no model given): the historical answer
+    # for lm_head variants is untied-by-design
+    return False
 
 
 def run_ladder(spec, ctx):
@@ -476,8 +526,9 @@ def run_ladder(spec, ctx):
             step += 1
             continue
         summ[name] = run_variant(name, edit_fns[name], VAR_DIRS[name],
-                                 expect_tied_for(name), verify_fns[name],
-                                 spec, ctx["model"], provenance=prov[name])
+                                 expect_tied_for(name, ctx["model"]),
+                                 verify_fns[name], spec, ctx["model"],
+                                 provenance=prov[name])
         step += 1
 
     # conditional max-intervention combo per v2 semantics
@@ -492,8 +543,9 @@ def run_ladder(spec, ctx):
                   flush=True)
             summ["wd_ML_BN"] = run_variant(
                 "wd_ML_BN", edit_fns["wd_ML_BN"], VAR_DIRS["wd_ML_BN"],
-                expect_tied_for("wd_ML_BN"), verify_fns["wd_ML_BN"], spec,
-                ctx["model"], provenance=prov["wd_ML_BN"])
+                expect_tied_for("wd_ML_BN", ctx["model"]),
+                verify_fns["wd_ML_BN"], spec, ctx["model"],
+                provenance=prov["wd_ML_BN"])
         else:
             print(f"[{step}/6] wd_ML_BN skipped: best of V1..V3 = {best3} "
                   f"< {spec['gates']['publish_refusal']}", flush=True)

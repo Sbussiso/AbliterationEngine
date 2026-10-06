@@ -213,6 +213,24 @@ def publish_phase(spec_path, variant_dir=None, mmlu_json=None,
     coh_B = layer["readout_space_final_layer_coherence"]
     struct = cfg["structure"]
     unties_head = variant in ("wd_B", "wd_BN", "wd_ML_BN")
+    base_ships_tied = bool(struct.get("tie_word_embeddings"))
+    # BUG-2: the tie sentence must be true on EVERY base. On an untied base
+    # the lm_head variants do not flip anything (it stays untied); the
+    # "untied clone" phrasing only applies when the base actually shipped tied.
+    if not unties_head:
+        tie_sentence = (
+            " - this variant leaves the embedding tie state untouched "
+            "because it edits only decoder-layer output matrices")
+    elif base_ships_tied:
+        tie_sentence = (
+            ", so the lm_head edit was applied to an UNTIED clone and "
+            "`tie_word_embeddings: false` is persisted in this repo's "
+            "config.json (input embeddings untouched)")
+    else:
+        tie_sentence = (
+            " - the base already ships untied (tie_word_embeddings: false), "
+            "so the lm_head edit applies in place and the head remains "
+            "untied; input embeddings are untouched")
     k_primary = sel.get("k_layers_primary") or []
     k_combo = sel.get("k_layers_combo") or []
     # final-norm "orth" zeroes w.d on the RMSNorm weight; the norm output is
@@ -319,7 +337,7 @@ Two families of edits are compared in this repo's evaluation:
   activation {hook_where} (forward hook, all positions) - the full-removal
   contrast, NOT the published weights;
 - **persistent weight edit (published artifact, `{variant}`)**: {published_edit}.
-  Base ships with tied embeddings{", so the lm_head edit was applied to an UNTIED clone and `tie_word_embeddings: false` is persisted in this repo's config.json (input embeddings untouched)" if unties_head else " - this variant leaves the embedding tie intact because it edits only decoder-layer output matrices"}.
+  Base ships with tied embeddings{tie_sentence}.
 
 ## Ablation details
 

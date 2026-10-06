@@ -373,7 +373,12 @@ def run_ara_variant(spec, name, cfg, model_base=None, provenance=None):
     gc.collect()
 
     var_dir = core.variant_dir(spec, name)
-    save_variant(model_v, tok_v, var_dir, expect_tied=True)
+    # BUG-2: ARA never touches the head — the tie expectation is the BASE
+    # model's own state (a tied 1.5B stays tied; an untied coder-7B stays
+    # untied). Derived, not assumed; verify_ara_on_disk compares against
+    # the SAME base state below.
+    base_tied = bool(model_v.config.tie_word_embeddings)
+    save_variant(model_v, tok_v, var_dir, expect_tied=base_tied)
     del model_v
     gc.collect()
     torch.cuda.empty_cache()
@@ -381,7 +386,15 @@ def run_ara_variant(spec, name, cfg, model_base=None, provenance=None):
     tok_r, model_r = core.load_patient({"patient": {
         "model_id": var_dir, "revision": None}})
     _, model_base_chk = core.load_patient(spec)
+    assert bool(model_r.config.tie_word_embeddings) is \
+        bool(model_base_chk.config.tie_word_embeddings), \
+        (f"{name}: reloaded tie flag "
+         f"{model_r.config.tie_word_embeddings} != base "
+         f"{model_base_chk.config.tie_word_embeddings} (ARA must not "
+         "change the tie state)")
     disk = verify_ara_on_disk(model_r, model_base_chk, set(layers))
+    disk["tie_state_preserved"] = bool(model_r.config.tie_word_embeddings) \
+        is bool(model_base_chk.config.tie_word_embeddings)
     del model_base_chk
     gc.collect()
     torch.cuda.empty_cache()

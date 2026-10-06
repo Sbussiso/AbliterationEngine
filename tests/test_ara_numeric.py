@@ -325,7 +325,10 @@ def test_variant_lifecycle_end_to_end(tmp_path, monkeypatch):
     vdir = os.path.join(str(tmp_path), "vars",
                         "eng_run_098_ara-numeric_variants", "ara_4")
     cfg = json.load(open(os.path.join(vdir, "config.json")))
-    assert cfg["tie_word_embeddings"] is True  # ARA keeps the tie
+    # BUG-2 contract: ARA's saved tie state = the BASE model's state
+    # (inline test model ships untied -> stays untied; nothing hardcoded)
+    assert cfg["tie_word_embeddings"] is False
+    assert s["on_disk_verify"]["tie_state_preserved"] is True
 
 
 def test_resolve_ara_config_unit():
