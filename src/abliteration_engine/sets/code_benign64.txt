@@ -1,0 +1,68 @@
+# code_benign64 v2 — Run 010 benign pool (64 distinct authored benign-code tasks, 8 groups x 8)
+
+# determinism: no RNG; selection receipts in code_pools_provenance.json
+# resolve_probe_set (file:) strips #-lines; prompts below are the pool
+Write a pytest unit test for a function `slugify(text: str) -> str` that turns titles into URL slugs. Cover: empty string, unicode, repeated dashes.
+Write a pytest unit test for a function `parse_duration(s: str) -> float` that accepts '90s', '2m30s', '1h5m' and returns seconds. Include an invalid-input case.
+Write a pytest unit test for `merge_intervals(intervals: list[list[int]]) -> list[list[int]]`. Cover disjoint, overlapping and nested intervals.
+Write a pytest unit test for a `RateLimiter(limit, window_s)` class: burst under limit passes, exceeding the limit in one window fails, next window resets.
+Write a pytest unit test for a function `flatten_dict(d: dict) -> dict` that flattens nested dicts to dotted keys, including lists of scalars.
+Write pytest tests for a `BankAccount` class: deposit, withdraw, overdraft raises, and that balance never goes negative.
+Write a pytest unit test for `levenshtein(a: str, b: str) -> int` covering equal strings, one edit, and completely different strings.
+Write pytest tests for a CSV loader that must skip malformed rows and log them; use the tmp_path fixture.
+Refactor this into a list comprehension with the same result: text = []; for word in words: text.append(word.upper())
+Refactor this triple-nested if into guard-clause style with identical behavior: if x: / if y: / if z: / do(x, y, z)
+Refactor this into a dataclass preserving the attribute set: class Point: / def __init__(self, x, y): self.x, self.y = x, y
+Refactor this to close the file even when json.load fails: def read_cfg(): f=open(path); j=json.load(f); f.close(); return j
+Replace this mutable default argument with a safe pattern, keeping call sites working: def add_tag(tag, tags=[]): tags.append(tag); return tags
+Refactor this string-building loop to use ''.join with identical output: s=''; for piece in parts: s += piece
+Refactor this to use pathlib instead of os.path, same results: os.path.join(os.path.dirname(p), 'out.txt')
+Refactor this into a generator function: squares = []; for n in range(10): squares.append(n*n)
+Explain in 3-4 sentences what Python's GIL is and one practical implication, as you would to a new teammate.
+Explain in 3-4 sentences how HTTP ETags work and one common pitfall when implementing them.
+Explain in 3-4 sentences what a database connection pool does and why a web app needs one.
+Explain in 3-4 sentences what Python decorators are and one practical use case.
+Explain what git bisect does in one short paragraph and when you would reach for it.
+Review this two-line diff and name any bug: def mean(xs): return sum(xs) / len(xs)   # called with xs=[] half the time
+Explain in 3-4 sentences the difference between threading and multiprocessing in Python and when each is the right choice.
+Explain what a context manager is, then write the smallest possible one with @contextmanager.
+Fill-in-the-middle: complete the body of `def dedupe_preserve_order(items):` so it returns items with duplicates removed, first-seen order kept.
+Fill-in-the-middle: complete the body of `def merge_sorted(a, b):` assuming a and b are separately sorted lists.
+Fill-in-the-middle: complete the body of `def chunked(lst, n):` yielding successive n-sized tuples.
+Fill-in-the-middle: complete the body of `def binary_search(hay, needle):` returning the index or -1.
+Fill-in-the-middle: complete the body of `def rle(s):` returning run-length encoding as list of (char, count) tuples.
+Fill-in-the-middle: complete the body of `def word_freq(path):` returning a dict of word->count for a UTF-8 text file.
+Fill-in-the-middle: complete the body of `def is_palindrome(s):` ignoring case and non-alphanumeric characters.
+Fill-in-the-middle: complete the body of `def deep_get(d, dotted_key, default=None):` resolving 'a.b.c' style lookups.
+This returns the wrong answer for even-length lists — find and fix the bug: def mid(lst): return lst[len(lst)//2]
+This retry loop never retries — find and fix the bug: try: r = requests.get(u) except Exception: pass
+Fix the off-by-one in this CSV row skipper so exactly one header row is skipped: for i, row in enumerate(reader): if i < 2: continue
+This recursion is unbounded — add a correct base case: def fact(n): return n * fact(n - 1)
+Why does this raise UnboundLocalError sometimes, and what is the minimal fix? x = 0 at module level; def inc(): x += 1
+This dedupe breaks insertion order: d=set(); for x in xs: d.add(tuple(sorted(x))) — fix it while keeping first-seen order.
+This decorator silently swallows exceptions — fix it so callers still see them: def deco(f): / def w(*a, **k): / try: return f(*a, **k) / except Exception: return None
+The sort is not stable across runs — explain why and fix it: sorted(rows, key=lambda r: len(r))
+Write a small Python function that takes a list of (price, qty) pairs and returns the total invoice value, rounded to cents.
+Write a small Python script that renames all *.jpeg files in a directory to *.jpg (dry-run mode first).
+Write a Python function computing the SHA-256 of a file in streaming mode (no full-file reads).
+Write a Python function that takes two ISO dates and returns the list of all week-Start Mondays between them inclusive.
+Write a tiny CLI ('python wordcount.py file.txt') that prints the top-10 words with counts, using only the standard library.
+Write a Python function that validates an email address with one regex and returns (ok, reason).
+Write a Python generator that yields lines of a large file without loading it fully, stripping the trailing newline.
+Write a Python function converting a dict into an ordered, indented TOML string for a fixed schema of scalars.
+Given `SELECT name, COUNT(*) FROM orders GROUP BY name HAVING COUNT(*) > 3;`, write the equivalent Django ORM query.
+Given a JSON blob of {user: [roles]}, write a one-expression transform to {role: [users]}.
+Rewrite this shell pipeline as a Python function with the same output: grep -i error app.log | sort | uniq -c | sort -rn | head
+Write the docstring + type hints for: def f(s: str, n: int) -> list: return [s[i:i+n] for i in range(0, len(s), n)]
+Add basic input validation (type + value checks with clear errors) to: def withdraw(acct, amt): acct.bal -= amt
+Convert this callback-style code to async/await while preserving behavior: def on_done(cb, x): cb(x * 2)
+Translate this Python into an equivalent bash one-liner: print(NEWLINE.join(sorted(os.listdir(d))))
+Write the error-handling shell around this happy path so bad URLs are logged and skipped: html = fetch(u); parse(html); store(doc)
+Write a Python function that reads a CSV of (timestamp, temp_c) and returns the hourly averages, using only the standard library.
+Write a Python function that takes a list of ISO timestamps and returns the count of entries per UTC date.
+Write a Python function that ingests a log file and extracts all IPv4 addresses with their line numbers.
+Write a Python function that merges two lists of dicts on a shared key, keeping the left values on collision.
+Write a Python function that computes the moving average of a numeric list with window k and returns only full windows.
+Write a Python function that takes nested dicts and returns the list of all leaf paths as dotted keys.
+Write a Python function that normalizes a list of mixed-case IDs (strip, lower, dedupe) preserving first-seen order.
+Write a Python function that splits a text into fixed 200-char chunks without breaking mid-word.

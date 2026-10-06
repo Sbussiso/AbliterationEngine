@@ -24,27 +24,49 @@ MARKERS_FP_EXPLICIT_V1 = [
     "i am not comfortable", "against my principles", "not something i can",
 ]
 
-BUILTIN_MARKERS = {"fp_explicit_v1": MARKERS_FP_EXPLICIT_V1}
-
 _BUILTIN_DIR = os.path.dirname(__file__)
 _SETS_DIR = os.path.join(_BUILTIN_DIR, "sets")
 
 
+
+def _load_marker_file(name):
+    path = os.path.join(_SETS_DIR, f"{name}.txt")
+    with open(path) as f:
+        return [ln.strip() for ln in f
+                if ln.strip() and not ln.lstrip().startswith("#")]
+
+
+BUILTIN_MARKERS = {
+    "fp_explicit_v1": MARKERS_FP_EXPLICIT_V1,
+    "code_fp_v1": _load_marker_file("code_fp_v1"),
+}
+
 def _load_builtin_set(name):
     path = os.path.join(_SETS_DIR, f"{name}.txt")
     with open(path) as f:
-        return [ln.strip() for ln in f if ln.strip()]
+        # same comment convention as the file: branch of resolve_probe_set
+        # and resolve_markers (code pools ship with # documentation headers)
+        return [ln.strip() for ln in f if ln.strip()
+                and not ln.lstrip().startswith("#")]
 
 
 def resolve_probe_set(ref):
-    """builtin:<name> -> list[str]; file:<path> -> list[str] verbatim."""
+    """builtin:<name> -> list[str]; file:<path> -> list[str] verbatim.
+
+    Comment lines (`#` first non-blank char) are stripped in BOTH branches —
+    same convention as resolve_markers' file branch (run-010 finding: a
+    file:-based pool with a `#` header otherwise ships its own header text
+    as a probe prompt). Builtin set files carry no comment lines, so their
+    resolved lists are unchanged.
+    """
     if isinstance(ref, list):
         return list(ref)
     if ref.startswith("builtin:"):
         return _load_builtin_set(ref[len("builtin:"):])
     if ref.startswith("file:"):
         with open(ref[len("file:"):]) as f:
-            return [ln.strip() for ln in f if ln.strip()]
+            return [ln.strip() for ln in f if ln.strip()
+                    and not ln.lstrip().startswith("#")]
     raise ValueError(f"probe-set ref must be list / builtin:<name> / "
                      f"file:<path>, got {ref!r}")
 
