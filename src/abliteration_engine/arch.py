@@ -295,8 +295,10 @@ MODEL_TYPE_LAYOUT.update({
 })
 
 # init's honest status classes, driven from this registry
-TESTED_MODEL_TYPES = {"qwen2"}          # GPU-proven by this program
-SAME_LAYOUT_UNTESTED = {"llama", "mistral", "qwen3", "gemma2", "gemma3",
+TESTED_MODEL_TYPES = {"qwen2", "llama"}  # GPU-proven by this program
+# (llama promoted 2026-10-06: run-009 Llama-3.2-1B-Instruct end-to-end —
+# full ladder artifact-backed, gate passed, MMLU clean; windows 2/4 banks)
+SAME_LAYOUT_UNTESTED = {"mistral", "qwen3", "gemma2", "gemma3",
                         "phi3", "granite", "olmo2", "stablelm", "glm",
                         "smollm3", "cohere2", "starcoder2", "gpt2",
                         "gpt_neox"}

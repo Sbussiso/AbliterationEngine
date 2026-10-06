@@ -278,11 +278,13 @@ class _Tok:
 def test_init_verdicts_from_registry():
     import abliteration_engine.init_spec as init_spec
 
-    for mt in ("llama", "phi3", "gemma2"):
+    for mt in ("phi3", "gemma2"):  # llama promoted to tested (run-009 GPU)
         lvl, msg = init_spec.architecture_verdict({"model_type": mt})
         assert lvl == "warn" and "not yet run" in msg, (mt, lvl, msg)
     lvl, msg = init_spec.architecture_verdict({"model_type": "qwen2"})
     assert lvl == "ok"
+    lvl, msg = init_spec.architecture_verdict({"model_type": "llama"})
+    assert lvl == "ok" and "tested" in msg  # promoted after run-009 end-to-end
     lvl, msg = init_spec.architecture_verdict({"model_type": "gpt_oss"})
     assert lvl == "warn" and "edit surface" in msg
     lvl, msg = init_spec.architecture_verdict({"model_type": "speech_to_text"})
