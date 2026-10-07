@@ -189,10 +189,17 @@ def run_variant(name, edit_fn, out_dir, expect_tied, verify_fn, spec,
     """Fresh base load -> edit -> save -> RELOAD from disk -> verify ->
     probe. Returns summary dict; dumps probes_<name>.json.
     (tok_source_model retained for call compatibility; the reloaded model
-    never shares state with the source load.)"""
+    never shares state with the source load.)
+
+    expect_tied=None derives the tie expectation from the freshly loaded
+    BASE (modifiers.flavor_for) — the ladder passes None because it never
+    holds a model of its own (ctx["model"] is None on every pipeline path;
+    deriving from it crashed every wd_ML ladder)."""
     print(f"      --- {name} ---", flush=True)
     t0 = time.time()
     tok_v, model_v = core.load_patient(spec)
+    if expect_tied is None:
+        expect_tied = expect_tied_for(name, model_v)  # base, pre-edit
     edit_info = edit_fn(model_v)
     print(f"      edit applied: {json.dumps(edit_info, default=str)}",
           flush=True)
@@ -503,7 +510,7 @@ def run_ladder(spec, ctx):
             step += 1
             continue
         summ[name] = run_variant(name, edit_fns[name], VAR_DIRS[name],
-                                 expect_tied_for(name, ctx["model"]),
+                                 None,  # derived from the loaded base
                                  verify_fns[name], spec, ctx["model"],
                                  provenance=prov[name])
         step += 1
@@ -520,7 +527,7 @@ def run_ladder(spec, ctx):
                   flush=True)
             summ["wd_ML_BN"] = run_variant(
                 "wd_ML_BN", edit_fns["wd_ML_BN"], VAR_DIRS["wd_ML_BN"],
-                expect_tied_for("wd_ML_BN", ctx["model"]),
+                None,  # derived from the loaded base
                 verify_fns["wd_ML_BN"], spec, ctx["model"],
                 provenance=prov["wd_ML_BN"])
         else:

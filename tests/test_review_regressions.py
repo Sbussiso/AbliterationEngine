@@ -490,3 +490,34 @@ def test_init_download_failure_is_clean_refusal(tmp_path, capsys):
     assert rc == 2
     assert "could not download config.json" in capsys.readouterr().err
     assert not (tmp_path / "s.yaml").exists()
+
+
+# ---- third review ----------------------------------------------------------------
+
+@pytest.mark.parametrize("variant,tied,expect", [
+    ("wd_B", True, "Base ships with tied embeddings, so the lm_head edit"),
+    ("wd_B", False, "Base ships with untied embeddings (tie_word_embed"),
+    ("wd_ML", False, "Base ships with untied embeddings; this variant"),
+    ("wd_ML", True, "Base ships with tied embeddings; this variant"),
+])
+def test_card_tie_sentence_matches_the_base(tmp_path, monkeypatch, variant,
+                                            tied, expect):
+    """The tie sentence was prefixed with 'Base ships with tied embeddings'
+    on every base, contradicting itself on untied patients."""
+    def mutate_cfg(c):
+        c["structure"]["tie_word_embeddings"] = tied
+
+    def to_variant(out_dir):
+        sel = json.loads((out_dir / "selection.json").read_text())
+        sel["selected"] = variant
+        (out_dir / "selection.json").write_text(json.dumps(sel))
+        (out_dir / "selection_candidates.json").write_text(json.dumps(
+            [{"variant": variant, "refusal_rate": 0.03,
+              "benign_preserved": 1.0, "degenerate_total": 0}]))
+    rc, vdir = _publish(tmp_path, monkeypatch, cfg_mutate=mutate_cfg,
+                        artifacts_mutate=to_variant,
+                        mmlu_mutate=lambda m: m.update(variant=variant))
+    card = (vdir / "README.md").read_text()
+    assert expect in card
+    opposite = "untied" if tied else "tied"
+    assert f"Base ships with {opposite} embeddings" not in card

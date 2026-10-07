@@ -307,8 +307,10 @@ def verify_ara_on_disk(model_r, base_model, layers):
         edited = li in layers
         worst = 0.0
         for label in labels:
-            W_r = arch.edit_linear(model_r, li, label).weight.float().cpu()
-            W_b = arch.edit_linear(base_model, li, label).weight.float().cpu()
+            W_r = arch.edit_linear(model_r, li, label).weight.detach() \
+                .float().cpu()
+            W_b = arch.edit_linear(base_model, li, label).weight.detach() \
+                .float().cpu()
             d = float((W_r - W_b).abs().max())
             worst = max(worst, d)
         key = str(li)
