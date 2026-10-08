@@ -649,11 +649,10 @@ def from_spec(spec):
                   "readout_space_final_layer_coherence": coh_B,
                   "readout_norm": readout_norm}})
     pkg_dir = os.path.dirname(os.path.abspath(__file__))
-    json.dump({"eng_core.py": sha256_file(os.path.abspath(__file__)),
-               "eng_spec.py": sha256_file(os.path.join(pkg_dir, "spec.py")),
-               **{f"eng_{m}.py": sha256_file(os.path.join(pkg_dir, f"{m}.py"))
-                  for m in ("data", "edits", "ara", "scoring_v2",
-                            "pipeline")}},
+    # every module in the package (a fixed list silently missed arch.py,
+    # modifiers.py, honest.py — code that now drives edits)
+    json.dump({f"eng_{fn}": sha256_file(os.path.join(pkg_dir, fn))
+               for fn in sorted(os.listdir(pkg_dir)) if fn.endswith(".py")},
               open(os.path.join(out_dir, "harness_sha256.json"), "w"),
               indent=2)
 

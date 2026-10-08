@@ -285,7 +285,16 @@ MODEL_TYPE_LAYOUT = {mt: "default" for mt in _MODEL_FAMILIES_DEFAULT}
 MODEL_TYPE_LAYOUT.update({
     "qwen2": "default",
     "qwen3": "default",
-    "qwen3_moe": "default",
+    # routed-MoE families: block.mlp is a sparse expert block with no single
+    # down_proj (verified on transformers 5.x: Qwen2/3MoeSparseMoeBlock,
+    # MixtralSparseMoeBlock; granitemoe names it block_sparse_moe) — the
+    # row-space edit applies to the attention output projection only.
+    # (qwen3_moe was mapped to the dense row, so stage 1 refused it.)
+    "qwen3_moe": "gpt_oss",
+    "qwen2_moe": "gpt_oss",
+    "mixtral": "gpt_oss",
+    "granitemoe": "gpt_oss",
+    "olmoe": "gpt_oss",
     "gpt_oss": "gpt_oss",
     "starcoder2": "starcoder2",
     "gpt2": "gpt2",
@@ -304,4 +313,19 @@ SAME_LAYOUT_UNTESTED = {"mistral", "qwen3", "gemma2", "gemma3",
                         "gpt_neox"}
 
 # model_type values whose routed-MoE experts make MLP edits inapplicable
-MOE_EXPERT_MLP = {"gpt_oss"}
+MOE_EXPERT_MLP = {"gpt_oss", "qwen3_moe", "qwen2_moe", "mixtral",
+                  "granitemoe", "olmoe"}
+
+# RMSNorm families that scale by (1 + weight) instead of weight (Gemma
+# lineage, verified in the modeling sources). The final-norm edit must act
+# on the EFFECTIVE scale (offset + stored weight): zeroing the stored
+# weight's component along d leaves the effective scale at 1 along d, i.e.
+# the edit silently does almost nothing.
+NORM_WEIGHT_OFFSET = {"gemma": 1.0, "gemma2": 1.0, "gemma3": 1.0,
+                      "gemma3_text": 1.0}
+
+
+def norm_weight_offset(model):
+    """0.0 for weight-scaled norms; 1.0 for (1 + weight) norms."""
+    return NORM_WEIGHT_OFFSET.get(getattr(model.config, "model_type", None),
+                                  0.0)

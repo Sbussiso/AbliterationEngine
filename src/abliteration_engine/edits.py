@@ -52,16 +52,23 @@ def orthogonalize_final_norm(model, direction):
     component along d is sum_i w_i x_hat_i d_i — zero only for every input
     if w * d = 0, which w.d = 0 does not imply. Kept as-is (frozen ladder
     semantics; wd_BN/wd_ML_BN results and parity depend on it); the exact
-    readout removal is the lm_head edit that always accompanies it."""
+    readout removal is the lm_head edit that always accompanies it.
+
+    (1 + weight) norm families (Gemma lineage, arch.NORM_WEIGHT_OFFSET):
+    the edit acts on the EFFECTIVE scale offset + w, then stores
+    w_eff_new - offset. Identical to the historical math when offset is 0."""
+    from . import arch
+
     n = core.final_norm_module(model)
+    off = arch.norm_weight_offset(model)
     d = direction.detach().float().cpu()
     d = d / d.norm()
     w = n.weight.data
-    w32 = w.float().cpu()
-    comp = float(w32 @ d)
-    w_new = w32 - comp * d
-    resid = float(abs(w_new @ d))
-    n.weight = torch.nn.Parameter(w_new.to(w.dtype).to(w.device),
+    w_eff = w.float().cpu() + off
+    comp = float(w_eff @ d)
+    w_eff_new = w_eff - comp * d
+    resid = float(abs(w_eff_new @ d))
+    n.weight = torch.nn.Parameter((w_eff_new - off).to(w.dtype).to(w.device),
                                   requires_grad=False)
     return comp, resid
 
@@ -155,10 +162,14 @@ def verify_final_norm_disk(model_r, dir_vec, bound=5e-2):
     """fp16 reload noise on a hidden-size (1536) dot of ~1.0-magnitude
     RMSNorm weights is ~1e-2; pre-edit alignment |w.d| is O(0.1+) so 5e-2
     cleanly separates 'edit survived' from 'edit lost'."""
+    from . import arch
+
     n = core.final_norm_module(model_r)
+    off = arch.norm_weight_offset(model_r)
     d = dir_vec.detach().float().cpu()
     d = d / d.norm()
-    resid = float(abs((n.weight.data.float().cpu() * d).sum().item()))
+    w_eff = n.weight.data.float().cpu() + off
+    resid = float(abs((w_eff * d).sum().item()))
     assert resid < bound, resid
     return resid
 
