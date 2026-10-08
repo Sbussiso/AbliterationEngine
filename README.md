@@ -107,7 +107,9 @@ start with [your first ablated model](tutorials/01_first_ablated_model.md).
 
 Every GPU verb requires explicit `--i-know-this-spends-quota`; `publish`
 additionally requires `--i-know-this-publishes`. `abliterate <verb> -h`
-lists a verb's options. Spec mistakes come back as one `REFUSING:` line,
+lists a verb's options. `plan` ends with the exact commands for the whole
+job; each phase ends with a short summary and the next command; `--quiet`
+prints one line per probe batch instead of one per prompt. Spec mistakes come back as one `REFUSING:` line,
 and an unsupported model architecture is refused right after loading,
 before any heavy GPU work.
 

@@ -24,7 +24,7 @@ import time
 import numpy as np
 import torch
 
-from abliteration_engine import core
+from abliteration_engine import core, ui
 
 
 def orthogonalize_lm_head(model, direction):
@@ -195,14 +195,14 @@ def run_variant(name, edit_fn, out_dir, expect_tied, verify_fn, spec,
     BASE (modifiers.flavor_for) — the ladder passes None because it never
     holds a model of its own (ctx["model"] is None on every pipeline path;
     deriving from it crashed every wd_ML ladder)."""
-    print(f"      --- {name} ---", flush=True)
     t0 = time.time()
     tok_v, model_v = core.load_patient(spec)
     if expect_tied is None:
         expect_tied = expect_tied_for(name, model_v)  # base, pre-edit
     edit_info = edit_fn(model_v)
-    print(f"      edit applied: {json.dumps(edit_info, default=str)}",
-          flush=True)
+    if not ui.quiet():
+        print(f"      edit applied: {json.dumps(edit_info, default=str)}",
+              flush=True)
     save_variant(model_v, tok_v, out_dir, expect_tied=expect_tied)
     del model_v
     gc.collect()
@@ -398,7 +398,11 @@ def run_ladder(spec, ctx):
     table = sorted(lc["table"], key=lambda r: -r["coherence"])
     k_layers_primary = [r["decoder_layer"] for r in table[:lad["k_primary"]]]
     k_layers_combo = [r["decoder_layer"] for r in table[:lad["k_combo"]]]
-    print(f"[1/6] ladder plan: L*={lc['best']['decoder_layer']} "
+    # one counter for the whole ladder: plan + every requested variant
+    # (the conditional wd_ML_BN counts even when it is skipped) + selection
+    stages = ui.Stages("B", len(variants) + 2)
+    stages.step("ladder plan")
+    print(f"      L*={lc['best']['decoder_layer']} "
           f"coh={lc['best']['coherence']} K_primary={k_layers_primary} "
           f"K_combo={k_layers_combo} "
           f"baseline_refusal={base_sum['refusal_rate']} "
@@ -495,11 +499,10 @@ def run_ladder(spec, ctx):
             for v in variants}
 
     summ = {}
-    step = 2
     for name in variants:
         if name == "wd_ML_BN" or name.startswith("ara_"):
             continue  # conditional combos + ARA, after the others
-        print(f"[{step}/6] {name}", flush=True)
+        stages.step(name)
         banked = _banked_variant_summary(spec, name, prov[name])
         if banked is not None:
             print(f"      {name}: BANKED RESUME (complete prior-session "
@@ -507,13 +510,11 @@ def run_ladder(spec, ctx):
                   f"benign={banked['benign_preserved']} "
                   f"degenerate={banked['degenerate_total']})", flush=True)
             summ[name] = banked
-            step += 1
             continue
         summ[name] = run_variant(name, edit_fns[name], VAR_DIRS[name],
                                  None,  # derived from the loaded base
                                  verify_fns[name], spec, ctx["model"],
                                  provenance=prov[name])
-        step += 1
 
     # conditional max-intervention combo per v2 semantics
     if "wd_ML_BN" in variants:
@@ -522,7 +523,8 @@ def run_ladder(spec, ctx):
                         "(spec validation guarantees wd_ML precedes it)")
         best3 = min(summ[v]["refusal_rate"] for v in others)
         if best3 >= spec["gates"]["publish_refusal"]:
-            print(f"[{step}/6] wd_ML_BN: best of V1..V3 = {best3} >= "
+            stages.step("wd_ML_BN (combo)")
+            print(f"      best of the other variants = {best3} >= "
                   f"{spec['gates']['publish_refusal']} -> running combo",
                   flush=True)
             summ["wd_ML_BN"] = run_variant(
@@ -531,15 +533,15 @@ def run_ladder(spec, ctx):
                 verify_fns["wd_ML_BN"], spec, ctx["model"],
                 provenance=prov["wd_ML_BN"])
         else:
-            print(f"[{step}/6] wd_ML_BN skipped: best of V1..V3 = {best3} "
+            stages.step("wd_ML_BN (combo) — skipped")
+            print(f"      best of the other variants = {best3} "
                   f"< {spec['gates']['publish_refusal']}", flush=True)
-        step += 1
 
     # ara_<rank> variant (FTT-28): the ARA optimizer runs AFTER the wd_*
     # variants (and the conditional wd_ML_BN above) — every other lifecycle
     # (banked resume, tie handling, selection) treats it like any variant.
     if ara_name is not None and ara_name in variants:
-        print(f"[{step}/6] {ara_name} (ARA optimizer)", flush=True)
+        stages.step(f"{ara_name} (ARA optimizer)")
         banked = _banked_variant_summary(spec, ara_name, prov[ara_name])
         if banked is not None:
             print(f"      {ara_name}: BANKED RESUME (complete prior-session "
@@ -550,9 +552,8 @@ def run_ladder(spec, ctx):
         else:
             summ[ara_name] = ara_mod.run_ara_variant(
                 spec, ara_name, ara_cfg, provenance=prov[ara_name])
-        step += 1
 
-    print(f"[{step + 1}/6] selection + artifacts", flush=True)
+    stages.step("selection + artifacts")
     cands = []
     for idx, name in enumerate(variants):
         if name not in summ:

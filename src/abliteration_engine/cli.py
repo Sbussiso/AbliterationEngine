@@ -28,64 +28,105 @@ from abliteration_engine.spec import SpecError, load_spec, spec_hash
 
 def plan(spec_path):
     """Full stage plan with NO model load. CPU-safe. The dry-run."""
+    from abliteration_engine import ui
+
     spec = load_spec(spec_path)
     ps = spec["probe_sets"]
     harmful = resolve_probe_set(ps["harmful"])
     harmless = resolve_probe_set(ps["harmless"])
     markers = resolve_markers(ps["refusal_markers"])
-    pat = spec["patient"]
-    rc = spec["run_card"]
-    print(f"=== abliterate plan — run {rc['run_number']} "
-          f"({rc['patient']}) spec {os.path.basename(spec_path)} "
-          f"(sha {spec_hash(spec)[:12]})")
-    print(f"patient: {pat['model_id']} @ {pat['revision']}")
+    pat, rc, lad, g = (spec["patient"], spec["run_card"], spec["ladder"],
+                       spec["gates"])
+    pub = spec.get("publish") or {}
+    dec = spec["decoding"]
+    variants = lad["variants"]
+    sp = ui.spec_arg(spec)
+
+    def row(key, value=""):
+        print(f"{key:<11}{value}")
+
+    def more(value):
+        print(f"{'':<11}{value}")
+
+    print(ui.style(f"abliterate plan — run {rc['run_number']} · "
+                   f"{rc['patient']}", "bold"))
+    row("spec", f"{sp} (sha {spec_hash(spec)[:12]})")
+    print()
+    row("patient", f"{pat['model_id']} @ {pat['revision'][:12]}")
     se = pat.get("structure_expect") or {}
     if se:
-        print(f"structure_expect: {json.dumps(se, sort_keys=True)}")
-    print(f"probe sets: harmful={ps['harmful']} ({len(harmful)} prompts), "
-          f"harmless={ps['harmless']} ({len(harmless)} prompts)")
-    print(f"markers: builtin={ps['refusal_markers']} "
-          f"({len(markers)} markers)")
-    print(f"decoding: {spec['decoding']}")
-    lad_keys = {k: v for k, v in spec["ladder"].items()
-                if k != "variants"} if spec["ladder"].get("variants") \
-        else {"note": "empty ladder = hook-only characterization "
-                      "(stage 5 + publish gated off)"}
-    print(f"ladder: {spec['ladder']['variants']} {lad_keys}")
-    if spec["ladder"].get("ara"):
-        a = spec["ladder"]["ara"]
-        print(f"  ARA: rank={a['rank']} layers={a.get('layers') or 'ALL'} "
-              f"w_pg={a['preserve_good_weight']} w_sb={a['steer_bad_weight']} "
-              f"w_oc={a['overcorrect_weight']} k={a['neighbor_count']} "
-              f"steps={a['steps']}x{a['max_iter']} lr={a['lr']} "
-              f"pools {a['good']}/{a['bad']}")
+        facts = []
+        if "num_hidden_layers" in se:
+            facts.append(f"{se['num_hidden_layers']} layers")
+        if "tie_word_embeddings" in se:
+            facts.append("tied head" if se["tie_word_embeddings"]
+                         else "untied head")
+        for k in ("o_proj_shape", "down_proj_shape"):
+            if k in se:
+                facts.append(f"{k.replace('_shape', '')} {se[k]}")
+        more("expect " + " · ".join(facts))
+    row("probes", f"harmful  {ps['harmful']} ({len(harmful)} prompts)")
+    more(f"harmless {ps['harmless']} ({len(harmless)} prompts)")
+    more(f"{ps['n_pairs']} pairs → directions · {ps['n_probes']} each "
+         f"probed · markers {ps['refusal_markers']} ({len(markers)}) · "
+         f"grader {ps.get('marker_mode', 'v1')}")
+    row("decoding", f"{dec.get('strategy', 'greedy')} · seed {dec['seed']} "
+                    f"· max {dec['max_new_tokens']} new tokens")
+    if variants:
+        row("ladder", f"{', '.join(variants)} · k_primary "
+                      f"{lad['k_primary']} · k_combo {lad['k_combo']}")
+        if lad.get("ara"):
+            a = lad["ara"]
+            more(f"ARA rank {a['rank']} · layers {a.get('layers') or 'all'}"
+                 f" · w_pg {a['preserve_good_weight']} w_sb "
+                 f"{a['steer_bad_weight']} w_oc {a['overcorrect_weight']} · "
+                 f"k {a['neighbor_count']} · L-BFGS {a['steps']}×"
+                 f"{a['max_iter']} @ lr {a['lr']}")
+            more(f"ARA pools {a['good']} / {a['bad']}")
+    else:
+        row("ladder", "none — hook-only characterization (no edits, "
+                      "nothing to publish)")
     if spec.get("directions"):
-        print(f"directions: {spec['directions']}")
-    print(f"gates: {spec['gates']}")
-    pub = spec.get("publish") or {}
-    if pub:
-        print(f"publish: {pub.get('repo_id')} "
-              f"license={pub.get('license')} "
-              f"HITL before_publish={spec.get('hitl', {}).get('before_publish')}")
-    print("stage plan:")
+        row("directions", f"readout_norm {spec['directions']['readout_norm']}")
+    row("gates", f"benign ≥ baseline − {g['benign_floor_delta'] * 100:g}pp · "
+                 f"degenerate ≤ {g['degenerate_max']} · refusal < "
+                 f"{g['publish_refusal'] * 100:g}% · MMLU loss < "
+                 f"{g['mmlu_max_loss_pp']}pp")
+    if pub.get("repo_id"):
+        hitl = (spec.get("hitl") or {}).get("before_publish", True)
+        row("publish", f"{pub['repo_id']} · {pub.get('license')}"
+                       + (" · needs --i-know-this-publishes" if hitl else ""))
+    else:
+        row("publish", "off (publish.repo_id unset)")
+    print()
+    print(ui.style("stages", "bold"))
     stages = [
-        ("1  load_patient", f"{pat['model_id']} @ {pat['revision'][:8]}"),
-        ("2  capture", f"{ps['n_pairs']}+{ps['n_pairs']} prompts, "
-                       "all-layer final-position residuals"),
-        ("3  directions", "coherence scan -> L*, dir_A (residual), "
-                          "dir_B (readout), layer_directions.npz"),
-        ("4  probe", f"baseline + hook-ablated, {ps['n_probes']}+"
-                     f"{ps['n_probes']} probes each, greedy"),
-        ("5  ladder", f"variants {spec['ladder']['variants']} "
-                      "(edit->save->reload->verify->probe each)"),
-        ("5.5 mmlu", "base vs variant, "
-                     f"delta <= {spec['gates']['mmlu_max_loss_pp']}pp gate"),
-        ("6  publish", f"{pub.get('repo_id', '<unset: stage gated off>')} "
-                       f"(HITL after_selection="
-                       f"{spec.get('hitl', {}).get('after_selection')})"),
+        ("A", "GPU", "load → capture → directions → baseline + hook probes"),
     ]
-    for name, desc in stages:
-        print(f"  {name:14s} {desc}")
+    if variants:
+        stages += [
+            ("B", "GPU", f"ladder: {', '.join(variants)} (each: edit → save"
+                         " → reload → verify → probe), then selection"),
+            ("C", "GPU", "MMLU guardrail: base vs selected variant"),
+        ]
+        if pub.get("repo_id"):
+            stages.append(("D", "CPU", "publish: gates → card + charts → "
+                                       "push → hub verify"))
+    for key, where, desc in stages:
+        print(f"  {key}  {where:<4}{desc}")
+    print()
+    print(ui.style("commands", "bold"))
+    cmds = [(f"abliterate run --spec {sp} --i-know-this-spends-quota",
+             "A" + (" + B" if variants else ""))]
+    if variants:
+        cmds.append((f"abliterate mmlu --spec {sp} "
+                     "--i-know-this-spends-quota", "C"))
+        if pub.get("repo_id"):
+            cmds.append((f"abliterate publish --spec {sp} "
+                         "--i-know-this-publishes", "D"))
+    width = max(len(c) for c, _ in cmds)
+    for c, which in cmds:
+        print(f"  {c:<{width}}  # {which}")
     return 0
 
 
@@ -174,9 +215,9 @@ VERBS = {
                  True, False, ()),
     "run": ("stage A (capture, directions, probes) then the ladder; add "
             "--with-mmlu to chain the MMLU guardrail", True, True,
-            ("with_mmlu",)),
+            ("with_mmlu", "quiet")),
     "ladder": ("stage B only: persistent-edit variants against existing "
-               "stage-A artifacts", True, True, ()),
+               "stage-A artifacts", True, True, ("quiet",)),
     "mmlu": ("MMLU guardrail: base vs selected variant (exits 6 on a failed "
              "guardrail)", True, True, ()),
     "publish": ("verify every gate, generate the model card, push to "
@@ -197,6 +238,9 @@ _FLAGS = {
     "with_mmlu": (("--with-mmlu",), {"action": "store_true",
                                      "help": "run the MMLU guardrail after "
                                              "the ladder (same session)"}),
+    "quiet": (("--quiet",), {"action": "store_true",
+                             "help": "one line per probe batch instead of "
+                                     "one per prompt (rows still saved)"}),
     "baseline": (("--baseline",), {"metavar": "DIR",
                                    "help": "baseline artifacts dir"}),
     "run_dir": (("--run-dir",), {"metavar": "DIR",
@@ -281,6 +325,8 @@ def main(argv=None):
         ap.error("--spec is required")
     if VERBS[args.verb][2] and not a.get("i_know_this_spends_quota"):
         return _quota_refusal(args.verb)
+    if a.get("quiet"):
+        os.environ["ENG_QUIET"] = "1"
     try:
         return _dispatch(args.verb, a)
     except SpecError as e:

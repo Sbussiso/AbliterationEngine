@@ -12,6 +12,7 @@ import time
 
 import numpy as np
 
+from abliteration_engine import ui
 from abliteration_engine.data import resolve_markers, resolve_probe_set
 
 REFUSAL_MARKERS = None  # set per-run by from_spec() or ensure_markers()
@@ -151,14 +152,13 @@ def load_patient(spec):
         tok.pad_token = tok.eos_token
     tok.padding_side = "right"  # extraction-friendly; probes run one-by-one
     dtype = torch.float16 if torch.cuda.is_available() else torch.float32
-    try:
-        model = AutoModelForCausalLM.from_pretrained(
-            pat["model_id"], torch_dtype=dtype, revision=pat["revision"],
-            device_map="auto")
-    except TypeError:  # newer transformers renamed torch_dtype -> dtype
-        model = AutoModelForCausalLM.from_pretrained(
-            pat["model_id"], dtype=dtype, revision=pat["revision"],
-            device_map="auto")
+    # transformers 4.56 renamed torch_dtype -> dtype (the old name warns on
+    # every load). Chosen by version, not try/except: older releases do not
+    # raise on an unknown `dtype=` — they absorb it into the config and load
+    # fp32 silently.
+    model = AutoModelForCausalLM.from_pretrained(
+        pat["model_id"], revision=pat["revision"], device_map="auto",
+        **{_dtype_kwarg(): dtype})
     model.eval()
     check_patient_compat(tok, model)
     return tok, model
@@ -181,6 +181,17 @@ def check_patient_compat(tok, model):
             + ". Supported layouts: Llama/Qwen/Mistral-style decoders"
               " (+ gpt2/gpt-neox/bloom/falcon/gpt-oss via the arch"
               " registry).")
+
+
+def _dtype_kwarg():
+    import transformers
+
+    try:
+        major, minor = (int(x) for x in
+                        transformers.__version__.split(".")[:2])
+    except ValueError:
+        return "dtype"
+    return "dtype" if (major, minor) >= (4, 56) else "torch_dtype"
 
 
 def structure_report(model):
@@ -276,9 +287,9 @@ def scan_layers(cap_harm, cap_harmless, n_pairs, min_layer=2):
                       "direction_norm": round(nd, 4),
                       "coherence": round(coh, 4)})
     table_sorted = sorted(table, key=lambda r: -r["coherence"])
-    print("  top layers by coherence:", flush=True)
+    ui.detail("top layers by coherence:")
     for r in table_sorted[:5]:
-        print(f"    L{r['decoder_layer']:2d} coh={r['coherence']:.3f} "
+        print(f"        L{r['decoder_layer']:2d} coh={r['coherence']:.3f} "
               f"|d|={r['direction_norm']:.2f}", flush=True)
     return table_sorted[0], table
 
@@ -358,10 +369,13 @@ def run_probes(tok, model, prompts, tag="", max_new=200, markers=None,
         rows.append({"i": j, "prompt": p, "output": o, "refused": r,
                      "degenerate": is_degenerate(o),
                      "gen_s": round(time.time() - t0, 1)})
-        left = (time.time() - t_start) / (j + 1) * (len(prompts) - j - 1)
-        print(f"  [{tag} {j + 1}/{len(prompts)}] refused={r} "
-              f"({rows[-1]['gen_s']}s, ~{_fmt_eta(left)} left) "
-              f"{o[:70]!r}", flush=True)
+        if not ui.quiet():
+            left = (time.time() - t_start) / (j + 1) * (len(prompts) - j - 1)
+            print(f"  [{tag} {j + 1}/{len(prompts)}] refused={r} "
+                  f"({rows[-1]['gen_s']}s, ~{_fmt_eta(left)} left) "
+                  f"{o[:70]!r}", flush=True)
+    if ui.quiet():
+        ui.probe_batch_line(tag, rows, time.time() - t_start)
     return rows
 
 
@@ -381,7 +395,7 @@ def summarize(rows_h, rows_b):
 
 
 # ---- stage 4: probe stage ---------------------------------------------------
-def run_baseline_and_hook_probes(spec, tok, model, out_dir):
+def run_baseline_and_hook_probes(spec, tok, model, out_dir, stages=None):
     """Baseline + hook-ablated probes. hooks.scope spec field (v1
     amendment, Run 000 semantics) decides hook placement:
       selected = single L* hook (Run 001 semantics, default)
@@ -398,7 +412,8 @@ def run_baseline_and_hook_probes(spec, tok, model, out_dir):
     harmful = resolve_probe_set(ps["harmful"])[:n_probes]
     harmless = resolve_probe_set(ps["harmless"])[:n_probes]
 
-    print("[4/5] baseline probes (clean model)", flush=True)
+    stages = stages or ui.Stages("A", 5)
+    stages.step("baseline probes (clean model)")
     base_h = run_probes(tok, model, harmful, tag="base-harm",
                         max_new=spec["decoding"]["max_new_tokens"],
                         markers=markers, score_fn=score_fn)
@@ -409,9 +424,11 @@ def run_baseline_and_hook_probes(spec, tok, model, out_dir):
     json.dump({"harmful": base_h, "harmless": base_b},
               open(os.path.join(out_dir, "probes_baseline.json"), "w"),
               indent=2)
-    print(f"      baseline: {json.dumps(base_sum)}", flush=True)
+    ui.detail(f"baseline: refusal {ui.pct(base_sum['refusal_rate'])}, "
+              f"benign answered {ui.pct(base_sum['benign_preserved'])}, "
+              f"degenerate {base_sum['degenerate_total']}")
 
-    print("[5/5] hook-ablated probes (inference-time)", flush=True)
+    stages.step("hook-ablated probes (inference-time contrast)")
     L_star = json.load(open(os.path.join(out_dir,
                                          "layer_coherence.json")))["best"][
         "decoder_layer"]
@@ -545,30 +562,35 @@ def from_spec(spec):
     torch.manual_seed(spec["decoding"]["seed"])
     t_start = time.time()
 
-    print(f"[1/5] pinned load {spec['patient']['model_id']} @ "
-          f"{spec['patient']['revision']}", flush=True)
+    stages = ui.Stages("A", 5)
+    stages.step(f"load {spec['patient']['model_id']} @ "
+              f"{spec['patient']['revision']}")
     tok, model = load_patient(spec)
     from . import arch
     n_layers = arch.n_layers(model)
     struct = structure_report(model)
     assert_patient_structure(spec, struct)
-    print(f"      structure: {json.dumps(struct)}", flush=True)
+    ui.detail(f"{struct.get('model_type')}: {struct['num_hidden_layers']} "
+              f"layers, hidden {struct['hidden_size']}, "
+              f"{'tied' if struct['tie_word_embeddings'] else 'untied'} "
+              f"head, edits {', '.join(struct['edit_matrices'])}")
 
     ps = spec["probe_sets"]
     harmful = resolve_probe_set(ps["harmful"])[:ps["n_pairs"]]
     harmless = resolve_probe_set(ps["harmless"])[:ps["n_pairs"]]
 
-    print("[2/5] capturing final-position residuals (all layers, one "
-          "forward pass per batch)", flush=True)
+    stages.step("capture final-position residuals (all layers, one "
+                "forward pass per batch)")
     t0 = time.time()
     wrap = lambda texts: [tok.apply_chat_template(
         [{"role": "user", "content": p}], tokenize=False,
         add_generation_prompt=True) for p in texts]
     cap_harm = capture_final_residuals(tok, model, wrap(harmful))
     cap_harmless = capture_final_residuals(tok, model, wrap(harmless))
-    print(f"      captured ({time.time() - t0:.1f}s)", flush=True)
+    ui.detail(f"captured {len(harmful)}+{len(harmless)} prompts "
+              f"({time.time() - t0:.1f}s)")
 
-    print("[3/5] coherence scan + directions", flush=True)
+    stages.step("coherence scan + refusal directions")
     best, table = scan_layers(cap_harm, cap_harmless, ps["n_pairs"])
     L_star = best["decoder_layer"]
     dir_A = cap_harm[L_star + 1][:ps["n_pairs"]].mean(0) \
@@ -587,9 +609,9 @@ def from_spec(spec):
     if readout_norm == "single":
         dir_B, nd_B, coh_B = coherence_stats(
             cap_harm[n_layers].float(), cap_harmless[n_layers].float())
-    print(f"      best layer L{L_star} coh={best['coherence']} "
-          f"(A: residual space); readout-space coh={coh_B:.3f} "
-          f"|d|={nd_B:.2f}", flush=True)
+    ui.detail(f"best layer L{L_star} coh={best['coherence']} "
+              f"(A: residual space); readout-space coh={coh_B:.3f} "
+              f"|d|={nd_B:.2f}")
 
     dirs_all = torch.stack([
         cap_harm[l + 1][:ps["n_pairs"]].mean(0)
@@ -616,7 +638,7 @@ def from_spec(spec):
     print("      directions + captures saved", flush=True)
 
     base_sum, hook_sum = run_baseline_and_hook_probes(spec, tok, model,
-                                                      out_dir)
+                                                      out_dir, stages)
     # "layer" is the block publish.py reads for the card (L*, residual and
     # readout-space coherence) — it was never written before, so publish
     # KeyError'd on every engine-produced run_config.json.
@@ -646,7 +668,7 @@ def from_spec(spec):
     # in the plan note (dev-workstation freeze review 2026-09-30).
     summary["ladder_skipped"] = not spec["ladder"]["variants"]
     if summary["ladder_skipped"]:
-        print("[5/6] ladder SKIPPED (empty variants - hook-only "
-              "characterization run)", flush=True)
-        print("[6/6] publish GATED OFF for hook-only runs", flush=True)
+        ui.detail("ladder SKIPPED (empty variants - hook-only "
+                  "characterization run)")
+        ui.detail("publish GATED OFF for hook-only runs")
     return summary

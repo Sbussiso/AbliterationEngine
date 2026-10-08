@@ -20,7 +20,7 @@ import json
 import os
 import sys
 
-from . import core
+from . import core, ui
 from .spec import load_spec
 
 
@@ -30,7 +30,7 @@ def _write_sentinel_exit(path, code):
         f.write(str(code))
 
 
-def _run_phase(fn, spec, exit_file, done_key, final=True):
+def _run_phase(fn, spec, exit_file, done_key, final=True, render=None):
     """One sentinel-wrapped engine stage. Writes exit_code; returns rc.
 
     The sentinel reads "running" while the stage executes. A non-final
@@ -46,6 +46,12 @@ def _run_phase(fn, spec, exit_file, done_key, final=True):
         rc = 0
         out_dir = core._out_dir(spec)
         summary = result if isinstance(result, dict) else {"ok": rc}
+        if render is not None:
+            try:  # the human summary must never fail a finished stage
+                render(summary)
+            except Exception as e:
+                print(f"(summary rendering failed: {e})", flush=True)
+        # machine sentinel stays the LAST line (poll-loop contract)
         print(f"{done_key} " + json.dumps(summary, default=str), flush=True)
     except Exception:
         import traceback
@@ -72,7 +78,8 @@ def run_pipeline(spec, final=True):
     exit_file = core.sentinel_exit()
     has_ladder = bool(spec["ladder"]["variants"])
     rc_a = _run_phase(core.from_spec, spec, exit_file, "RUN_DONE",
-                      final=final and not has_ladder)
+                      final=final and not has_ladder,
+                      render=lambda s: ui.summary_stage_a(s, spec))
     if rc_a != 0:
         return rc_a
     if not has_ladder:
@@ -81,7 +88,9 @@ def run_pipeline(spec, final=True):
     from . import edits  # torch-bound module; deferred for CPU CLI paths
     return _run_phase(lambda s: edits.run_ladder(s, {"out_dir": core._out_dir(s),
                                                      "model": None}),
-                      spec, exit_file, "LADDER_DONE", final=final)
+                      spec, exit_file, "LADDER_DONE", final=final,
+                      render=lambda p: ui.summary_ladder(
+                          p, spec, chained_mmlu=not final))
 
 
 def ladder_phase(spec_path):
@@ -98,7 +107,8 @@ def ladder_phase(spec_path):
     exit_file = core.sentinel_exit()
     return _run_phase(lambda s: edits.run_ladder(s, {"out_dir": core._out_dir(s),
                                                      "model": None}),
-                      spec, exit_file, "LADDER_DONE")
+                      spec, exit_file, "LADDER_DONE",
+                      render=lambda p: ui.summary_ladder(p, spec))
 
 
 if __name__ == "__main__":
