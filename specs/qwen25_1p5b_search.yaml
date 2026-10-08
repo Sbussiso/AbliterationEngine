@@ -1,0 +1,64 @@
+# Run 011: the first `abliterate search` arm — automatic multi-objective
+# edit search on the run-002 patient (same pin, same probe instrument), so
+# the result is directly comparable with the run-002 ladder (best persistent
+# edit 34.4%, gated off) and the run-008 ARA arm.
+#   abliterate plan   --spec specs/qwen25_1p5b_search.yaml
+#   abliterate search --spec specs/qwen25_1p5b_search.yaml --i-know-this-spends-quota
+spec_version: 1
+run_card:
+  run_number: 11
+  patient: qwen2.5-1.5b-search
+  purpose: "Run 011: search v1 (Pareto, holdout-certified) vs the run-002 ladder on the identical instrument"
+
+patient:
+  model_id: Qwen/Qwen2.5-1.5B-Instruct
+  revision: "989aa7980e4cf806f80c7fef2b1adb7bc71aa306"
+  structure_expect:
+    num_hidden_layers: 28
+    num_key_value_heads: 2
+    tie_word_embeddings: true
+    o_proj_shape: [1536, 1536]
+    down_proj_shape: [1536, 8960]
+
+probe_sets:
+  harmful: builtin:primary64_harmful
+  harmless: builtin:primary64_harmless
+  n_pairs: 64
+  n_probes: 64
+  refusal_markers: builtin:fp_explicit_v1
+  marker_mode: v2        # search grades with the v2 grader (catches "I can't... here's how")
+
+decoding:
+  max_new_tokens: 200
+  strategy: greedy
+  seed: 0
+
+ladder:
+  variants: []           # edits come from the search below
+
+search:
+  trials: 40             # ~1 Colab T4 window at these sizes; resumable (raise to continue)
+  eval_prompts: 24       # search split, per side (ara_bad / ara_good, disjoint from probes)
+  holdout_prompts: 32    # sealed: certificate only
+  max_new_tokens: 48
+  kl_tokens: 8
+  batch_size: 8
+  max_kl: 0.5            # selection cap on answer-trajectory drift
+
+gates:
+  benign_floor_delta: 0.10
+  degenerate_max: 0
+  publish_refusal: 0.25
+  mmlu_max_loss_pp: 3.0
+
+publish:
+  repo_id: sbussiso/Qwen2.5-1.5B-abliterated
+  license: apache-2.0
+  card_marker: "abliterated by the sbussiso lab research agent"
+
+colab:
+  gpu: t4
+
+hitl:
+  after_selection: true
+  before_publish: true

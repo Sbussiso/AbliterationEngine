@@ -83,6 +83,8 @@ def plan(spec_path):
                  f"k {a['neighbor_count']} · L-BFGS {a['steps']}×"
                  f"{a['max_iter']} @ lr {a['lr']}")
             more(f"ARA pools {a['good']} / {a['bad']}")
+    elif spec.get("search") is not None:
+        row("ladder", "none — edits come from `abliterate search` (below)")
     else:
         row("ladder", "none — hook-only characterization (no edits, "
                       "nothing to publish)")
@@ -116,28 +118,33 @@ def plan(spec_path):
     stages = [
         ("A", "GPU", "load → capture → directions → baseline + hook probes"),
     ]
+    searched = spec.get("search") is not None
     if variants:
-        stages += [
-            ("B", "GPU", f"ladder: {', '.join(variants)} (each: edit → save"
-                         " → reload → verify → probe), then selection"),
-            ("C", "GPU", "MMLU guardrail: base vs selected variant"),
-        ]
+        stages.append(("B", "GPU", f"ladder: {', '.join(variants)} (each: "
+                                   "edit → save → reload → verify → probe), "
+                                   "then selection"))
+    if searched:
+        stages.append(("S", "GPU", "search: trials → Pareto front → "
+                                   "certified pick"
+                                   + (" (alternative to B)" if variants
+                                      else "")))
+    if variants or searched:
+        stages.append(("C", "GPU", "MMLU guardrail: base vs selected "
+                                   "variant"))
         if pub.get("repo_id"):
             stages.append(("D", "CPU", "publish: gates → card + charts → "
                                        "push → hub verify"))
     for key, where, desc in stages:
         print(f"  {key}  {where:<4}{desc}")
-    if spec.get("search") is not None:
-        print("  S  GPU search: trials → Pareto front → certified pick "
-              "(instead of B)")
     print()
     print(ui.style("commands", "bold"))
-    cmds = [(f"abliterate run --spec {sp} --i-know-this-spends-quota",
-             "A" + (" + B" if variants else ""))]
-    if spec.get("search") is not None:
+    cmds = [] if (searched and not variants) else [
+        (f"abliterate run --spec {sp} --i-know-this-spends-quota",
+         "A" + (" + B" if variants else ""))]
+    if searched:
         cmds.append((f"abliterate search --spec {sp} "
                      "--i-know-this-spends-quota", "S (runs A if needed)"))
-    if variants:
+    if variants or searched:
         cmds.append((f"abliterate mmlu --spec {sp} "
                      "--i-know-this-spends-quota", "C"))
         if pub.get("repo_id"):

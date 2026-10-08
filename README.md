@@ -100,6 +100,7 @@ start with [your first ablated model](tutorials/01_first_ablated_model.md).
 | `validate` | no | fail-fast spec check (pinned revisions, gate ordering, …) |
 | `run` | yes | stage A (capture → direction scan → baseline + hook probes), then the stage-B ladder; `--with-mmlu` chains the guardrail too |
 | `ladder` | yes | stage B only (resume): persistent-edit variants, each edit→save→reload→verify→probe |
+| `search` | yes | automatic alternative to the ladder: multi-objective trials → Pareto front → pick certified on a sealed holdout (resumable) |
 | `mmlu` | yes | guardrail: identical lm-eval config both sides, <3pp loss gate |
 | `publish` | no | verify ALL gates locally, then push weights + a generated card with charts to HF (finds the winner and MMLU summary from the run's records) |
 | `parity` | no | strict diff vs a known-good baseline run (fails loudly, never fakes) |
@@ -144,6 +145,17 @@ already returns the last hidden state post-norm). Set
 `directions: {readout_norm: single}` in a new spec to compute it from the
 actual `lm_head` input; leaving it out keeps the frozen Run-001 computation
 and its parity anchors.
+
+**Automatic search.** Instead of a hand-picked ladder, add a `search:` block
+and run `abliterate search`. It tries edits in memory (layer window,
+projection strength, direction source, attention/MLP, optional output-head
+edit) and scores each on three separate objectives: harmful refusal, benign
+refusal, and how far the model's answers drift from the original. It keeps
+the whole trade-off curve, picks with a stated policy, and certifies the
+pick on a sealed holdout the search never saw. Trials are banked, so a
+killed Colab session resumes. Design and the honest comparison with
+Heretic: [`specs/engine_v04_search_v1.md`](specs/engine_v04_search_v1.md);
+a ready spec: `specs/qwen25_1p5b_search.yaml`.
 
 Beyond the four built-in `wd_*` edits, the ladder accepts **ARA variants**
 (`ara_<rank>`, Arbitrary-Rank Ablation, Weidmann 2026 — the method behind
