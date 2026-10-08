@@ -57,5 +57,5 @@ jobs:
           uv pip install torch --index-url https://download.pytorch.org/whl/cpu
           uv pip install "transformers>=4.44" accelerate
 
-      - name: End-to-end engine run on tiny CPU models
-        run: uv run --no-sync pytest tests/test_e2e_cpu.py -v
+      - name: Full suite with torch (e2e, search editor, real-arch checks)
+        run: uv run --no-sync pytest tests/ -q

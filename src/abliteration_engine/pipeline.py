@@ -93,6 +93,15 @@ def run_pipeline(spec, final=True):
                           p, spec, chained_mmlu=not final))
 
 
+def search_phase(spec_path):
+    """`abliterate search` — automatic multi-objective edit search (GPU)."""
+    from . import search
+    spec = load_spec(spec_path)
+    return _run_phase(search.search_phase, spec, core.sentinel_exit(),
+                      "SEARCH_DONE",
+                      render=lambda p: ui.summary_search(p, spec))
+
+
 def ladder_phase(spec_path):
     """`abliterate ladder` — stage B only against existing artifacts."""
     spec = load_spec(spec_path)

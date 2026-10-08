@@ -155,6 +155,31 @@ def summary_ladder(payload, spec, chained_mmlu=False):
     _box("ladder complete", rows, nxt, verdict)
 
 
+def summary_search(payload, spec):
+    ev = payload["search_eval"]
+    probe = payload["probe_set"]
+    rows = [
+        ("trials", f"{payload['trials']} · Pareto front "
+                   f"{payload['pareto_size']}"),
+        ("chosen", f"{payload['selected']} — {payload['describe']}"),
+        ("search split", f"refusal {pct(ev['refusal'])} · benign refused "
+                         f"{pct(ev['benign_refusal'])} · KL {ev['kl']:.3f}"),
+        ("probe set", f"refusal {pct(probe['refusal_rate'])} · benign "
+                      f"{pct(probe['benign_preserved'])}"),
+        ("sealed holdout", f"refusal {pct(payload['holdout_refusal_before'])}"
+                           f"  →  {pct(payload['holdout_refusal'])}"),
+    ]
+    ok = payload["certificate_publishable"]
+    verdict = ("certificate passes the holdout bar" if ok else
+               "certificate does NOT pass the holdout bar — publish will "
+               "refuse", ok)
+    nxt = (f"abliterate mmlu --spec {spec_arg(spec)} "
+           "--i-know-this-spends-quota" if ok else
+           "widen search.space or raise search.trials and re-run "
+           "(banked trials are reused)")
+    _box("search complete", rows, nxt, verdict)
+
+
 def summary_mmlu(summary, spec):
     limit = summary["guardrail_loss_pp_limit"]
     ok = summary["mmlu_delta_pp"] < limit

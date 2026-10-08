@@ -88,6 +88,19 @@ def plan(spec_path):
                       "nothing to publish)")
     if spec.get("directions"):
         row("directions", f"readout_norm {spec['directions']['readout_norm']}")
+    if spec.get("search") is not None:
+        from abliteration_engine.search import resolve_config
+        sc = resolve_config(spec)
+        spc = sc["space"]
+        row("search", f"{sc['trials']} trials · seed {sc['seed']} · "
+                      f"{sc['eval_prompts']}+{sc['eval_prompts']} search "
+                      f"prompts · {sc['holdout_prompts']} sealed holdout")
+        more(f"space α {spc['alpha'][0]}–{spc['alpha'][1]} · "
+             f"{'/'.join(spc['components'])} · "
+             f"{'/'.join(spc['direction_modes'])} · readout "
+             f"{'/'.join(str(v).lower() for v in spc['readout'])}")
+        more(f"pools {sc['harmful_pool']} / {sc['benign_pool']}"
+             + (f" · KL cap {sc['max_kl']}" if sc["max_kl"] else ""))
     row("gates", f"benign ≥ baseline − {g['benign_floor_delta'] * 100:g}pp · "
                  f"degenerate ≤ {g['degenerate_max']} · refusal < "
                  f"{g['publish_refusal'] * 100:g}% · MMLU loss < "
@@ -114,10 +127,16 @@ def plan(spec_path):
                                        "push → hub verify"))
     for key, where, desc in stages:
         print(f"  {key}  {where:<4}{desc}")
+    if spec.get("search") is not None:
+        print("  S  GPU search: trials → Pareto front → certified pick "
+              "(instead of B)")
     print()
     print(ui.style("commands", "bold"))
     cmds = [(f"abliterate run --spec {sp} --i-know-this-spends-quota",
              "A" + (" + B" if variants else ""))]
+    if spec.get("search") is not None:
+        cmds.append((f"abliterate search --spec {sp} "
+                     "--i-know-this-spends-quota", "S (runs A if needed)"))
     if variants:
         cmds.append((f"abliterate mmlu --spec {sp} "
                      "--i-know-this-spends-quota", "C"))
@@ -216,6 +235,9 @@ VERBS = {
     "run": ("stage A (capture, directions, probes) then the ladder; add "
             "--with-mmlu to chain the MMLU guardrail", True, True,
             ("with_mmlu", "quiet")),
+    "search": ("automatic edit search: multi-objective trials, Pareto "
+               "front, certified pick (alternative to the ladder)", True,
+               True, ("quiet",)),
     "ladder": ("stage B only: persistent-edit variants against existing "
                "stage-A artifacts", True, True, ("quiet",)),
     "mmlu": ("MMLU guardrail: base vs selected variant (exits 6 on a failed "
@@ -359,6 +381,9 @@ def _dispatch(verb, a):
         return parity(spec, a["baseline"], a.get("run_dir"))
     if verb == "run":
         return run(spec, True, with_mmlu=a.get("with_mmlu", False))
+    if verb == "search":
+        from abliteration_engine.pipeline import search_phase
+        return search_phase(spec)
     if verb == "ladder":
         from abliteration_engine.pipeline import ladder_phase
         return ladder_phase(spec)

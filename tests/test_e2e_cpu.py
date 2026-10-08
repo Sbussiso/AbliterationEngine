@@ -239,3 +239,83 @@ def test_publish_after_real_run(eng_root):
     card = open(os.path.join(sel["selected_variant_dir"], "README.md")).read()
     assert f"`{sel['selected']}`" in card
     assert "Base ships with tied embeddings" in card
+
+
+def test_search_end_to_end_with_resume_and_publish(eng_root):
+    """`abliterate search` on a tiny untied patient: stage A runs itself,
+    trials bank in the study (a re-run with a larger budget resumes rather
+    than restarting), the pick is materialized + verified on disk +
+    certified on the sealed holdout, and publish accepts it."""
+    pytest.importorskip("optuna")
+    patient_dir, cfg = _patient(eng_root, "llama")
+    spec_path = _spec(eng_root, patient_dir, cfg, "llama-search", [])
+    d = yaml.safe_load(open(spec_path))
+    d["search"] = {"trials": 3, "eval_prompts": 4, "holdout_prompts": 8,
+                   "max_new_tokens": 4, "kl_tokens": 2, "batch_size": 4}
+    open(spec_path, "w").write(yaml.safe_dump(d))
+    assert cli.main(["search", "--spec", spec_path,
+                     "--i-know-this-spends-quota", "--quiet"]) == 0
+    spec = __import__("abliteration_engine.spec",
+                      fromlist=["load_spec"]).load_spec(spec_path)
+    out = core._out_dir(spec)
+    report = json.load(open(os.path.join(out, "search", "search_report.json")))
+    assert report["n_trials"] == 3
+    assert report["certificate"]["n_holdout"] == 8
+    assert report["on_disk_verify"]["n_matrices"] >= 1
+    sel = json.load(open(os.path.join(out, "selection.json")))
+    assert sel["selected"].startswith("search_")
+    assert os.path.isdir(sel["selected_variant_dir"])
+    saved = json.load(open(os.path.join(sel["selected_variant_dir"],
+                                        "config.json")))
+    assert saved["tie_word_embeddings"] is False   # untied base stays untied
+
+    # resume: raising the budget runs only the new trials
+    d["search"]["trials"] = 5
+    open(spec_path, "w").write(yaml.safe_dump(d))
+    assert cli.main(["search", "--spec", spec_path,
+                     "--i-know-this-spends-quota", "--quiet"]) == 0
+    lines = open(os.path.join(out, "search", "trials.jsonl")).read() \
+        .strip().splitlines()
+    assert len(lines) == 5, "resume re-ran banked trials"
+
+    # publish takes the searched variant like any ladder variant
+    sel = json.load(open(os.path.join(out, "selection.json")))
+    sel["publish_eligible_probe_gate"] = True   # tiny random model: force
+    sel["gate"] = "passed"
+    json.dump(sel, open(os.path.join(out, "selection.json"), "w"))
+    json.dump({"base": {"acc": 0.3, "acc_stderr": 0.01},
+               "variant_model": {"acc": 0.299, "acc_stderr": 0.01},
+               "mmlu_base_pct": 30.0, "mmlu_variant_pct": 29.9,
+               "mmlu_delta_pp": 0.1, "guardrail_30pp": True,
+               "guardrail_loss_pp_limit": 3.0, "variant": sel["selected"],
+               "variant_fingerprint":
+                   sel["selected_provenance"]["fingerprint"]},
+              open(os.path.join(out, "mmlu_summary.json"), "w"))
+    d["publish"]["repo_id"] = "sbussiso/e2e-search"
+    open(spec_path, "w").write(yaml.safe_dump(d))
+
+    class Hub:
+        uploaded = None
+
+        def whoami(self):
+            return {"name": "sbussiso"}
+
+        def create_repo(self, *a, **k):
+            return None
+
+        def upload_folder(self, *a, folder_path=None, **k):
+            Hub.uploaded = folder_path
+
+        def list_repo_files(self, *a, **k):
+            return [os.path.relpath(os.path.join(r, f), Hub.uploaded)
+                    for r, _, fs in os.walk(Hub.uploaded) for f in fs]
+
+        def hf_hub_download(self, repo, name, **k):
+            return os.path.join(Hub.uploaded, name)
+
+    with mock.patch("huggingface_hub.HfApi", return_value=Hub()):
+        assert cli.main(["publish", "--spec", spec_path,
+                         "--i-know-this-publishes"]) == 0
+    card = open(os.path.join(sel["selected_variant_dir"], "README.md")).read()
+    assert "searched rank-1 partial projection" in card
+    assert "sealed holdout" in card
