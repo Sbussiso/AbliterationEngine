@@ -24,7 +24,7 @@ import time
 import numpy as np
 import torch
 
-from abliteration_engine import core
+from abliteration_engine import core, ui
 
 
 def orthogonalize_lm_head(model, direction):
@@ -52,16 +52,23 @@ def orthogonalize_final_norm(model, direction):
     component along d is sum_i w_i x_hat_i d_i — zero only for every input
     if w * d = 0, which w.d = 0 does not imply. Kept as-is (frozen ladder
     semantics; wd_BN/wd_ML_BN results and parity depend on it); the exact
-    readout removal is the lm_head edit that always accompanies it."""
+    readout removal is the lm_head edit that always accompanies it.
+
+    (1 + weight) norm families (Gemma lineage, arch.NORM_WEIGHT_OFFSET):
+    the edit acts on the EFFECTIVE scale offset + w, then stores
+    w_eff_new - offset. Identical to the historical math when offset is 0."""
+    from . import arch
+
     n = core.final_norm_module(model)
+    off = arch.norm_weight_offset(model)
     d = direction.detach().float().cpu()
     d = d / d.norm()
     w = n.weight.data
-    w32 = w.float().cpu()
-    comp = float(w32 @ d)
-    w_new = w32 - comp * d
-    resid = float(abs(w_new @ d))
-    n.weight = torch.nn.Parameter(w_new.to(w.dtype).to(w.device),
+    w_eff = w.float().cpu() + off
+    comp = float(w_eff @ d)
+    w_eff_new = w_eff - comp * d
+    resid = float(abs(w_eff_new @ d))
+    n.weight = torch.nn.Parameter((w_eff_new - off).to(w.dtype).to(w.device),
                                   requires_grad=False)
     return comp, resid
 
@@ -155,10 +162,14 @@ def verify_final_norm_disk(model_r, dir_vec, bound=5e-2):
     """fp16 reload noise on a hidden-size (1536) dot of ~1.0-magnitude
     RMSNorm weights is ~1e-2; pre-edit alignment |w.d| is O(0.1+) so 5e-2
     cleanly separates 'edit survived' from 'edit lost'."""
+    from . import arch
+
     n = core.final_norm_module(model_r)
+    off = arch.norm_weight_offset(model_r)
     d = dir_vec.detach().float().cpu()
     d = d / d.norm()
-    resid = float(abs((n.weight.data.float().cpu() * d).sum().item()))
+    w_eff = n.weight.data.float().cpu() + off
+    resid = float(abs((w_eff * d).sum().item()))
     assert resid < bound, resid
     return resid
 
@@ -189,13 +200,20 @@ def run_variant(name, edit_fn, out_dir, expect_tied, verify_fn, spec,
     """Fresh base load -> edit -> save -> RELOAD from disk -> verify ->
     probe. Returns summary dict; dumps probes_<name>.json.
     (tok_source_model retained for call compatibility; the reloaded model
-    never shares state with the source load.)"""
-    print(f"      --- {name} ---", flush=True)
+    never shares state with the source load.)
+
+    expect_tied=None derives the tie expectation from the freshly loaded
+    BASE (modifiers.flavor_for) — the ladder passes None because it never
+    holds a model of its own (ctx["model"] is None on every pipeline path;
+    deriving from it crashed every wd_ML ladder)."""
     t0 = time.time()
     tok_v, model_v = core.load_patient(spec)
+    if expect_tied is None:
+        expect_tied = expect_tied_for(name, model_v)  # base, pre-edit
     edit_info = edit_fn(model_v)
-    print(f"      edit applied: {json.dumps(edit_info, default=str)}",
-          flush=True)
+    if not ui.quiet():
+        print(f"      edit applied: {json.dumps(edit_info, default=str)}",
+              flush=True)
     save_variant(model_v, tok_v, out_dir, expect_tied=expect_tied)
     del model_v
     gc.collect()
@@ -391,7 +409,11 @@ def run_ladder(spec, ctx):
     table = sorted(lc["table"], key=lambda r: -r["coherence"])
     k_layers_primary = [r["decoder_layer"] for r in table[:lad["k_primary"]]]
     k_layers_combo = [r["decoder_layer"] for r in table[:lad["k_combo"]]]
-    print(f"[1/6] ladder plan: L*={lc['best']['decoder_layer']} "
+    # one counter for the whole ladder: plan + every requested variant
+    # (the conditional wd_ML_BN counts even when it is skipped) + selection
+    stages = ui.Stages("B", len(variants) + 2)
+    stages.step("ladder plan")
+    print(f"      L*={lc['best']['decoder_layer']} "
           f"coh={lc['best']['coherence']} K_primary={k_layers_primary} "
           f"K_combo={k_layers_combo} "
           f"baseline_refusal={base_sum['refusal_rate']} "
@@ -488,11 +510,10 @@ def run_ladder(spec, ctx):
             for v in variants}
 
     summ = {}
-    step = 2
     for name in variants:
         if name == "wd_ML_BN" or name.startswith("ara_"):
             continue  # conditional combos + ARA, after the others
-        print(f"[{step}/6] {name}", flush=True)
+        stages.step(name)
         banked = _banked_variant_summary(spec, name, prov[name])
         if banked is not None:
             print(f"      {name}: BANKED RESUME (complete prior-session "
@@ -500,13 +521,11 @@ def run_ladder(spec, ctx):
                   f"benign={banked['benign_preserved']} "
                   f"degenerate={banked['degenerate_total']})", flush=True)
             summ[name] = banked
-            step += 1
             continue
         summ[name] = run_variant(name, edit_fns[name], VAR_DIRS[name],
-                                 expect_tied_for(name, ctx["model"]),
+                                 None,  # derived from the loaded base
                                  verify_fns[name], spec, ctx["model"],
                                  provenance=prov[name])
-        step += 1
 
     # conditional max-intervention combo per v2 semantics
     if "wd_ML_BN" in variants:
@@ -515,24 +534,25 @@ def run_ladder(spec, ctx):
                         "(spec validation guarantees wd_ML precedes it)")
         best3 = min(summ[v]["refusal_rate"] for v in others)
         if best3 >= spec["gates"]["publish_refusal"]:
-            print(f"[{step}/6] wd_ML_BN: best of V1..V3 = {best3} >= "
+            stages.step("wd_ML_BN (combo)")
+            print(f"      best of the other variants = {best3} >= "
                   f"{spec['gates']['publish_refusal']} -> running combo",
                   flush=True)
             summ["wd_ML_BN"] = run_variant(
                 "wd_ML_BN", edit_fns["wd_ML_BN"], VAR_DIRS["wd_ML_BN"],
-                expect_tied_for("wd_ML_BN", ctx["model"]),
+                None,  # derived from the loaded base
                 verify_fns["wd_ML_BN"], spec, ctx["model"],
                 provenance=prov["wd_ML_BN"])
         else:
-            print(f"[{step}/6] wd_ML_BN skipped: best of V1..V3 = {best3} "
+            stages.step("wd_ML_BN (combo) — skipped")
+            print(f"      best of the other variants = {best3} "
                   f"< {spec['gates']['publish_refusal']}", flush=True)
-        step += 1
 
     # ara_<rank> variant (FTT-28): the ARA optimizer runs AFTER the wd_*
     # variants (and the conditional wd_ML_BN above) — every other lifecycle
     # (banked resume, tie handling, selection) treats it like any variant.
     if ara_name is not None and ara_name in variants:
-        print(f"[{step}/6] {ara_name} (ARA optimizer)", flush=True)
+        stages.step(f"{ara_name} (ARA optimizer)")
         banked = _banked_variant_summary(spec, ara_name, prov[ara_name])
         if banked is not None:
             print(f"      {ara_name}: BANKED RESUME (complete prior-session "
@@ -543,9 +563,8 @@ def run_ladder(spec, ctx):
         else:
             summ[ara_name] = ara_mod.run_ara_variant(
                 spec, ara_name, ara_cfg, provenance=prov[ara_name])
-        step += 1
 
-    print(f"[{step + 1}/6] selection + artifacts", flush=True)
+    stages.step("selection + artifacts")
     cands = []
     for idx, name in enumerate(variants):
         if name not in summ:

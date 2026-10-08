@@ -230,6 +230,8 @@ def mmlu_phase(spec_path):
     json.dump(summary, open(os.path.join(out_dir, "mmlu_summary.json"),
                             "w"), indent=2)
     logw("MMLU_DONE " + json.dumps(summary))
+    from . import ui
+    ui.summary_mmlu(summary, spec)
     rc = rc1 if rc1 else rc2 if rc2 else 0
     if rc == 0 and not delta_pp < max_loss:
         logw(f"GUARDRAIL FAILED: MMLU loss {delta_pp:.2f}pp >= "

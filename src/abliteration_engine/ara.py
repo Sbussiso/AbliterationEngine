@@ -307,8 +307,10 @@ def verify_ara_on_disk(model_r, base_model, layers):
         edited = li in layers
         worst = 0.0
         for label in labels:
-            W_r = arch.edit_linear(model_r, li, label).weight.float().cpu()
-            W_b = arch.edit_linear(base_model, li, label).weight.float().cpu()
+            W_r = arch.edit_linear(model_r, li, label).weight.detach() \
+                .float().cpu()
+            W_b = arch.edit_linear(base_model, li, label).weight.detach() \
+                .float().cpu()
             d = float((W_r - W_b).abs().max())
             worst = max(worst, d)
         key = str(li)
@@ -340,7 +342,6 @@ def run_ara_variant(spec, name, cfg, model_base=None, provenance=None):
     from abliteration_engine.data import resolve_probe_set
     from abliteration_engine.edits import save_variant, write_variant_probes
 
-    print(f"      --- {name} (ARA rank {cfg.get('rank')}) ---", flush=True)
     t0 = time.time()
     tok_v, model_v = core.load_patient(spec)
     layers = cfg.get("layers") or list(range(arch.n_layers(model_v)))

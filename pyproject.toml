@@ -20,10 +20,17 @@ charts = [
     # model-card figures (publish renders them when importable)
     "matplotlib>=3.7",
 ]
+search = [
+    # `abliterate search`: multi-objective trial optimizer + resumable
+    # SQLite study storage (MIT; imported lazily)
+    "optuna>=5.0",
+]
 dev = [
     "pytest>=8.0",
     # CI renders the card charts for real (tests/test_card_charts.py)
     "matplotlib>=3.7",
+    # search selection / study tests (tests/test_search.py)
+    "optuna>=5.0",
     "ruff>=0.6",
     # publish tests mock huggingface_hub.HfApi; CI's frozen sync has no
     # system-site leak, so the mock target must be a real dev dep

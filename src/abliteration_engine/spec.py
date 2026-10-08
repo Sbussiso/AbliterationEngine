@@ -194,6 +194,16 @@ def load_spec(path):
     # hidden_states[-1], which HF already returns post-norm); 'single' =
     # the actual lm_head input. Validated only, never injected (absent =
     # double) so every existing spec_hash and parity anchor stays stable.
+    # search: optional block for `abliterate search` (validated against the
+    # search module's schema; never injected — absent keeps every existing
+    # spec hash stable)
+    if raw.get("search") is not None:
+        from .search import resolve_config as _search_cfg
+        try:
+            _search_cfg(raw)
+        except ValueError as e:
+            raise SpecError(str(e)) from e
+
     dirs = raw.get("directions") or {}
     if not isinstance(dirs, dict):
         raise SpecError("directions must be a mapping")

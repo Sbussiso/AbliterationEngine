@@ -36,3 +36,26 @@ jobs:
             uv run --no-sync abliterate plan --spec "$f" > /dev/null || fail=1
           done
           [ "$fail" -eq 0 ] || exit 1
+
+  # The default job has no torch, so the GPU-side engine (load, capture,
+  # edits, save/reload/verify, ARA, publish card) never ran in CI — two
+  # regressions reached main that way. This job installs CPU torch and runs
+  # the real engine end to end on tiny random models (tied + untied).
+  cpu-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          cache-dependency-glob: uv.lock
+
+      - name: Install (dev + CPU torch + transformers)
+        run: |
+          uv sync --frozen --extra dev
+          uv pip install torch --index-url https://download.pytorch.org/whl/cpu
+          uv pip install "transformers>=4.44" accelerate
+
+      - name: Full suite with torch (e2e, search editor, real-arch checks)
+        run: uv run --no-sync pytest tests/ -q

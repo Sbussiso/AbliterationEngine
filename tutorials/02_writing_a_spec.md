@@ -183,6 +183,25 @@ effective settings either way.)
 model (a "characterization run") — great first experiment for a brand
 new model.
 
+**Let the tool find the surgery for you.** Instead of listing variants,
+add a `search:` block and run `abliterate search` instead of `run`:
+
+```yaml
+ladder:
+  variants: []
+search:
+  trials: 40        # how many surgeries to try; raise later to continue
+  max_kl: 0.5       # optional: never pick one that drifts more than this
+```
+
+It tries many surgeries in memory, scores each on three separate things
+(still refuses harmful questions? still answers normal ones? how far did
+its answers drift from the original model?), shows you the best
+trade-offs, picks one with a stated rule, and checks that pick on a set of
+questions the search never saw. A killed Colab session loses nothing:
+re-run the same command and it continues. A complete example is
+`specs/qwen25_1p5b_search.yaml`.
+
 ---
 
 ### Block 6 — `gates`: the pass/fail bars

@@ -48,6 +48,7 @@ def test_verb_help_shows_only_its_flags(capsys):
 def test_quota_flag_harmless_on_cpu_verbs(capsys):
     assert cli.main(["plan", "--spec", RUN001,
                      "--i-know-this-spends-quota"]) == 0
+    capsys.readouterr()  # plan itself lists the run command; drain it
     with pytest.raises(SystemExit):
         cli.main(["plan", "-h"])
     assert "--i-know-this-spends-quota" not in capsys.readouterr().out

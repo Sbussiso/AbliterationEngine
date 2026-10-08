@@ -81,7 +81,10 @@ class HoldoutVault:
     """Load-once sealed container for holdout refusal strata.
 
     The texts are readable ONLY via `peek_count()` (an int) and
-    `grade_with(score_fn)` (rows WITH the texts — scoring only). There is
+    `grade_with(score_fn, generate_fn)`, which feeds each held-out prompt
+    to the CANDIDATE model (inference only) and scores the model's OUTPUT
+    — a refusal rate is a property of the model's answers, never of the
+    prompts. There is
     deliberately no method that returns the texts themselves to callers
     other than grade_with, and `use_as_optimizer_data()` raises: handing
     holdout to an optimizer is the bug class this module exists to make
@@ -110,14 +113,25 @@ class HoldoutVault:
         blob = json.dumps(list(self._texts), sort_keys=True).encode()
         return hashlib.sha256(blob).hexdigest()[:16]
 
-    def grade_with(self, score_fn):
-        """Score the holdout with the STRICT scorer and return rows in the
-        engine probe-file shape (refused flags + texts). Callers may
-        summarize these rows; the texts here are grade OUTPUTS, not
-        optimizer inputs."""
-        rows = [{"i": i, "output_ref": f"HOLDOUT-row-{i}", "refused":
-                 int(bool(score_fn(t)))}
-                for i, t in enumerate(self._texts)]
+    def grade_with(self, score_fn, generate_fn):
+        """Measure the candidate on the holdout: generate_fn(prompt) ->
+        the candidate model's response (inference only — measurement, not
+        optimization), score_fn(response) -> 0/1 with the STRICT scorer.
+        Returns rows in the engine probe-file shape (i, output, refused);
+        the prompts themselves are never returned.
+
+        (Earlier versions scored the holdout PROMPT texts, so every
+        candidate measured ~0% refusal regardless of the model.)"""
+        if generate_fn is None or not callable(generate_fn):
+            raise ValueError(
+                "holdout grading needs generate_fn (prompt -> the "
+                "candidate's response): refusal is measured on model "
+                "outputs, never on the prompts")
+        rows = []
+        for i, t in enumerate(self._texts):
+            out = generate_fn(t)
+            rows.append({"i": i, "output": out,
+                         "refused": int(bool(score_fn(out)))})
         self._graded = True
         return rows
 
@@ -171,12 +185,13 @@ def _vault_texts_if_trusted(vault):
 
 
 # ---- honest objective pieces -------------------------------------------------
-def refusal_rate_holdout(vault, score_fn=None):
+def refusal_rate_holdout(vault, generate_fn, score_fn=None):
     """A NUMBER (rate), not data — the only holdout quantity the loss may
-    consume."""
+    consume. generate_fn: prompt -> the candidate model's response."""
     info = scorer_info()
     fn = score_fn or info["score_fn"]
-    rows = vault.grade_with(lambda t: fn(t, info["markers"]))
+    rows = vault.grade_with(lambda out: fn(out, info["markers"]),
+                            generate_fn)
     return (sum(r["refused"] for r in rows) / max(1, len(rows)), rows)
 
 
@@ -221,12 +236,20 @@ def build_certificate(candidate, metrics, holdout_vault, config_fingerprint,
                       patient_revision, direction_shas, seeds,
                       refusal_rate_train=None, benign_preserved=None,
                       capability_proxy=None, capability_proxy_before=None,
-                      benign_before=None, holdout_before=None):
+                      benign_before=None, holdout_before=None,
+                      generate_fn=None):
     """certificate.json payload (schema-pinned). Every number required; a
     certificate without full metrics is refused rather than shipped with
-    holes. No-collateral claim lives in scorer() — strict only."""
+    holes. No-collateral claim lives in scorer() — strict only.
+
+    generate_fn (required): prompt -> the CANDIDATE's response; the
+    holdout refusal rate is measured on those responses."""
     info = scorer_info()
-    rate, rows = refusal_rate_holdout(holdout_vault)
+    if generate_fn is None:
+        raise ValueError("certificate needs generate_fn: the holdout "
+                         "refusal rate must be measured on the candidate "
+                         "model's responses")
+    rate, rows = refusal_rate_holdout(holdout_vault, generate_fn)
     cert = {
         "schema_version": CERTIFICATE_SCHEMA_VERSION,
         "candidate": candidate,

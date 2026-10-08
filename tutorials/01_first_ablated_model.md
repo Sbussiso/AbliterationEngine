@@ -92,18 +92,33 @@ ships with real ones. Look at what a mission looks like:
 You'll see something like:
 
 ```
-=== abliterate plan — run 1 (qwen2.5-0.5b) ...
-patient: Qwen/Qwen2.5-0.5B-Instruct @ 7ae55760
-probe sets: harmful=... (64 prompts), harmless=... (64 prompts)
-stage plan:
-  1  load_patient ...
-  2  capture     64+64 prompts, all-layer final-position residuals
-  3  directions  coherence scan -> L* ...
-  4  probe       baseline + hook-ablated ...
-  5  ladder      variants ['wd_B', 'wd_BN', ...]
-  5.5 mmlu       base vs variant, delta <= 3.0pp gate
-  6  publish     sbussiso/... (HITL before_publish=True)
+abliterate plan — run 1 · qwen2.5-0.5b
+spec       specs/run001_parity.yaml (sha 54590e5d8e45)
+
+patient    Qwen/Qwen2.5-0.5B-Instruct @ 7ae557604adf
+           expect 24 layers · tied head · o_proj [896, 896] · down_proj [896, 4864]
+probes     harmful  builtin:primary64_harmful (64 prompts)
+           harmless builtin:primary64_harmless (64 prompts)
+           64 pairs → directions · 16 each probed · markers builtin:fp_explicit_v1 (50) · grader v1
+decoding   greedy · seed 0 · max 200 new tokens
+ladder     wd_B, wd_BN, wd_ML, wd_ML_BN · k_primary 3 · k_combo 5
+gates      benign ≥ baseline − 10pp · degenerate ≤ 0 · refusal < 25% · MMLU loss < 3.0pp
+publish    sbussiso/Qwen2.5-0.5B-abliterated · apache-2.0 · needs --i-know-this-publishes
+
+stages
+  A  GPU load → capture → directions → baseline + hook probes
+  B  GPU ladder: wd_B, wd_BN, wd_ML, wd_ML_BN (each: edit → save → reload → verify → probe), then selection
+  C  GPU MMLU guardrail: base vs selected variant
+  D  CPU publish: gates → card + charts → push → hub verify
+
+commands
+  abliterate run --spec specs/run001_parity.yaml --i-know-this-spends-quota   # A + B
+  abliterate mmlu --spec specs/run001_parity.yaml --i-know-this-spends-quota  # C
+  abliterate publish --spec specs/run001_parity.yaml --i-know-this-publishes  # D
 ```
+
+The `commands` block at the bottom is the whole job, in order. You'll
+run exactly those three lines in the steps below.
 
 Plain-English translation of that plan:
 
@@ -133,11 +148,15 @@ One cell:
 (The flag is the tool's built-in "yes, spend my GPU minutes" — it makes
 sure nothing expensive ever runs by accident.)
 
-You'll watch it: download the model → capture chatter (a few minutes)
-→ find the direction → ask test questions (each line shows `~Xs left`
-for that batch). When you see `RUN_DONE`, stage A is complete, and the
-same command carries straight on into the permanent surgeries (Step 5b)
-until it prints `LADDER_DONE`.
+You'll watch it work through numbered steps: `[A 1/5] load …` up to
+`[A 5/5]` for the measuring, then `[B 1/6] …` for the permanent
+surgeries (Step 5b). Each question it asks prints one line with `~Xs
+left` for that batch. Add `--quiet` to get one line per batch instead.
+
+When each half finishes, it prints a short summary box: the refusal
+numbers before and after, and a **`next:`** line with the exact command
+to run next. A line starting `RUN_DONE {…}` or `LADDER_DONE {…}`
+follows; that's the machine-readable record, and you can ignore it.
 
 **What happened in there?** The tool read the model's internal
 activations on each of 24 layers for 128 questions, found the one

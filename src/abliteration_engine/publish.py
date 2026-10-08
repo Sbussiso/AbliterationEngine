@@ -78,7 +78,7 @@ def _render_charts(vdir, pub, base_m, hook_m, hook_label, cands, variant,
         {"label": "baseline", "kind": "baseline", **base_m},
         {"label": f"hook\n(inference-time,\n{hook_label})", "kind": "hook",
          **hook_m}]
-    ara_names = [v for v in cands if str(v).startswith("ara_")]
+    ara_names = [v for v in cands if str(v).startswith(("ara_", "search_"))]
     for name in ("wd_B", "wd_BN", "wd_ML", "wd_ML_BN", *ara_names):
         if name in cands:
             conditions.append({"label": label(name), "kind": "variant",
@@ -212,25 +212,34 @@ def publish_phase(spec_path, variant_dir=None, mmlu_json=None,
     coh = layer["coherence"]
     coh_B = layer["readout_space_final_layer_coherence"]
     struct = cfg["structure"]
-    unties_head = variant in ("wd_B", "wd_BN", "wd_ML_BN")
+    search_point = sel.get("search_point") if variant.startswith(
+        "search_") else None
+    unties_head = (variant in ("wd_B", "wd_BN", "wd_ML_BN")
+                   or bool(search_point and search_point.get("readout")))
     base_ships_tied = bool(struct.get("tie_word_embeddings"))
     # BUG-2: the tie sentence must be true on EVERY base. On an untied base
     # the lm_head variants do not flip anything (it stays untied); the
     # "untied clone" phrasing only applies when the base actually shipped tied.
+    # one complete sentence per case — the template used to prefix every
+    # case with "Base ships with tied embeddings", which contradicted
+    # itself on untied bases (Llama, Qwen-7B/Coder)
+    tie_state = "tied" if base_ships_tied else "untied"
     if not unties_head:
         tie_sentence = (
-            " - this variant leaves the embedding tie state untouched "
-            "because it edits only decoder-layer output matrices")
+            f"Base ships with {tie_state} embeddings; this variant leaves "
+            "that state untouched because it edits only decoder-layer "
+            "output matrices.")
     elif base_ships_tied:
         tie_sentence = (
-            ", so the lm_head edit was applied to an UNTIED clone and "
-            "`tie_word_embeddings: false` is persisted in this repo's "
-            "config.json (input embeddings untouched)")
+            "Base ships with tied embeddings, so the lm_head edit was "
+            "applied to an UNTIED clone and `tie_word_embeddings: false` "
+            "is persisted in this repo's config.json (input embeddings "
+            "untouched).")
     else:
         tie_sentence = (
-            " - the base already ships untied (tie_word_embeddings: false), "
-            "so the lm_head edit applies in place and the head remains "
-            "untied; input embeddings are untouched")
+            "Base ships with untied embeddings (tie_word_embeddings: "
+            "false), so the lm_head edit applies in place and the head "
+            "remains untied; input embeddings are untouched.")
     k_primary = sel.get("k_layers_primary") or []
     k_combo = sel.get("k_layers_combo") or []
     # final-norm "orth" zeroes w.d on the RMSNorm weight; the norm output is
@@ -267,6 +276,17 @@ def publish_phase(spec_path, variant_dir=None, mmlu_json=None,
             f"optimizer pools {acfg.get('good')}/{acfg.get('bad')} "
             f"(disjoint from the eval probes)")
 
+    if search_point:
+        from .search import describe as _describe_point
+        edit_desc[variant] = (
+            "searched rank-1 partial projection (`abliterate search`: "
+            "multi-objective, Pareto-selected) — "
+            f"{_describe_point(search_point)}; W <- W - α r rᵀ W on the "
+            "selected matrices"
+            + (", plus the output head against the readout-space direction"
+               if search_point.get("readout") else "")
+            + ". Certified on a sealed holdout never seen by the search "
+            f"(holdout refusal {_pct(sel.get('search_holdout_refusal') or 0)})")
     is_ara = variant.startswith("ara_")
     method_name = ("Arbitrary-Rank Ablation (ARA, Weidmann 2026)" if is_ara
                    else "the Arditi et al. (2024) refusal-direction method")
@@ -278,7 +298,7 @@ def publish_phase(spec_path, variant_dir=None, mmlu_json=None,
     published_edit = edit_desc.get(variant, variant)
 
     ladder_rows = []
-    ara_names = [v for v in cands if str(v).startswith("ara_")]
+    ara_names = [v for v in cands if str(v).startswith(("ara_", "search_"))]
     for name in ("wd_B", "wd_BN", "wd_ML", "wd_ML_BN", *ara_names):
         if name in cands:
             c = cands[name]
@@ -337,7 +357,7 @@ Two families of edits are compared in this repo's evaluation:
   activation {hook_where} (forward hook, all positions) - the full-removal
   contrast, NOT the published weights;
 - **persistent weight edit (published artifact, `{variant}`)**: {published_edit}.
-  Base ships with tied embeddings{tie_sentence}.
+  {tie_sentence}
 
 ## Ablation details
 
